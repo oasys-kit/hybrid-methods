@@ -75,23 +75,23 @@ from srxraylib.util.inverse_method_sampler import Sampler2D, Sampler1D
 # -------------------------------------------------------------
 
 class HybridDiffractionPlane:
-    SAGITTAL   = 1
-    TANGENTIAL = 2
-    BOTH_2D    = 3
-    BOTH_2X1D  = 4
+    SAGITTAL   = 0
+    TANGENTIAL = 1
+    BOTH_2D    = 2
+    BOTH_2X1D  = 3
 
 class HybridCalculationType:
-    SIMPLE_APERTURE                = 1
-    MIRROR_OR_GRATING_SIZE         = 2
-    MIRROR_SIZE_AND_ERROR_PROFILE  = 3
-    GRATING_SIZE_AND_ERROR_PROFILE = 4
-    CRL_SIZE                       = 5
-    CRL_SIZE_AND_ERROR_PROFILE     = 6
+    SIMPLE_APERTURE                = 0
+    MIRROR_OR_GRATING_SIZE         = 1
+    MIRROR_SIZE_AND_ERROR_PROFILE  = 2
+    GRATING_SIZE_AND_ERROR_PROFILE = 3
+    CRL_SIZE                       = 4
+    CRL_SIZE_AND_ERROR_PROFILE     = 5
 
 class HybridPropagationType:
-    FAR_FIELD  = 1
-    NEAR_FIELD = 2
-    BOTH       = 3
+    FAR_FIELD  = 0
+    NEAR_FIELD = 1
+    BOTH       = 2
 
 class HybridLengthUnits:
     METERS = 0
@@ -226,7 +226,6 @@ class HybridListener():
     @abstractmethod
     def error_message(self, message : str): raise NotImplementedError
 
-
 class HybridInputParameters():
     def __init__(self,
                  listener : HybridListener,
@@ -291,6 +290,20 @@ class HybridInputParameters():
     @property
     def random_seed(self) -> int: return self.__random_seed
 
+    # INPUT PARAMETERS TO BE CHANGED BY CALCULATION
+    @focal_length.setter
+    def focal_length(self, value : float): self.__focal_length = value
+    @propagation_distance.setter
+    def propagation_distance(self, value : float): self.__propagation_distance = value
+    @n_bins_x.setter
+    def n_bins_x(self, value : int): self.__n_bins_x = value
+    @n_bins_z.setter
+    def n_bins_z(self, value : int): self.__n_bins_z = value
+    @n_peaks.setter
+    def n_peaks(self, value : int): self.__n_peaks = value
+    @fft_n_pts.setter
+    def fft_n_pts(self, value : int): self.__fft_n_pts = value
+
     def get(self, name): return self.__additional_parameters.get(name, None)
 
 class HybridGeometryAnalysis:
@@ -303,34 +316,81 @@ class HybridGeometryAnalysis:
     def get_analysis_result(self): return copy.deepcopy(self.__analysis)
     def has_result(self, result : int): return result in self.__analysis
 
+    def __str__(self):
+        text = "Geometry Analysis:"
+        if len(self.__analysis) == 0: text += " beam is cut in both directions"
+        else:
+            if self.BEAM_NOT_CUT_SAGITTALLY in self.__analysis: text += " beam not cut sagittally"
+            if self.BEAM_NOT_CUT_TANGENTIALLY in self.__analysis: text += " beam not cut tangentially"
+        return text
+
 class HybridCalculationResult():
     def __init__(self,
                  far_field_beam : HybridBeamWrapper = None,
                  near_field_beam : HybridBeamWrapper = None,
+                 divergence_sagittal : ScaledArray = None,
+                 divergence_tangential : ScaledArray = None,
+                 divergence_2D : ScaledMatrix = None,
+                 position_sagittal: ScaledArray = None,
+                 position_tangential: ScaledArray = None,
+                 position_2D: ScaledMatrix = None,
                  geometry_analysis : HybridGeometryAnalysis = None):
         self.__far_field_beam = far_field_beam
         self.__near_field_beam = near_field_beam
+        self.__divergence_sagittal = divergence_sagittal
+        self.__divergence_tangential = divergence_tangential
+        self.__divergence_2D = divergence_2D
+        self.__position_sagittal = position_sagittal
+        self.__position_tangential = position_tangential
+        self.__position_2D = position_2D
         self.__geometry_analysis = geometry_analysis
 
     @property
-    def far_field_beam(self): return self.__far_field_beam
+    def far_field_beam(self) -> HybridBeamWrapper: return self.__far_field_beam
     @far_field_beam.setter
-    def far_field_beam(self, value): self.__far_field_beam = value
+    def far_field_beam(self, value : HybridBeamWrapper): self.__far_field_beam = value
 
     @property
-    def near_field_beam(self): return self.__near_field_beam
+    def near_field_beam(self) -> HybridBeamWrapper: return self.__near_field_beam
     @near_field_beam.setter
-    def near_field_beam(self, value): self.__near_field_beam = value
+    def near_field_beam(self, value : HybridBeamWrapper): self.__near_field_beam = value
 
     @property
-    def geometry_analysis(self): return self.__geometry_analysis
+    def divergence_sagittal(self) -> ScaledArray: return self.__divergence_sagittal
+    @divergence_sagittal.setter
+    def divergence_sagittal(self, value : ScaledArray): self.__divergence_sagittal = value
+
+    @property
+    def divergence_tangential(self) -> ScaledArray: return self.__divergence_tangential
+    @divergence_tangential.setter
+    def divergence_tangential(self, value : ScaledArray): self.__divergence_tangential = value
+
+    @property
+    def divergence_2D(self) -> ScaledMatrix: return self.__divergence_2D
+    @divergence_2D.setter
+    def divergence_2D(self, value : ScaledMatrix): self.__divergence_2D = value
+
+    @property
+    def position_sagittal(self) -> ScaledArray: return self.__position_sagittal
+    @position_sagittal.setter
+    def position_sagittal(self, value : ScaledArray): self.__position_sagittal = value
+
+    @property
+    def position_tangential(self) -> ScaledArray: return self.__position_tangential
+    @position_tangential.setter
+    def position_tangential(self, value : ScaledArray): self.__position_tangential = value
+
+    @property
+    def position_2D(self) -> ScaledMatrix: return self.__position_2D
+    @position_2D.setter
+    def position_2D(self, value : ScaledMatrix): self.__position_2D = value
+
+    @property
+    def geometry_analysis(self) -> HybridGeometryAnalysis: return self.__geometry_analysis
     @geometry_analysis.setter
-    def geometry_analysis(self, value): self.geometry_analysis = value
+    def geometry_analysis(self, value : HybridGeometryAnalysis): self.geometry_analysis = value
 
 '''
-    ghy_mirrorfile = "mirror.dat"
-
-
     crl_error_profiles = None
     crl_material = None
     crl_delta = None
@@ -498,7 +558,7 @@ class AbstractHybridScreen():
                 geometry_analysis.add_analysis_result(HybridGeometryAnalysis.BEAM_NOT_CUT_SAGITTALLY)
                 geometry_analysis.add_analysis_result(HybridGeometryAnalysis.BEAM_NOT_CUT_TANGENTIALLY)
             else: # ANALYSIS OF THE HISTOGRAMS
-                def get_intensity_cut(ticket, _max, _min):
+                def get_intensity_cut(ticket, _min, _max):
                     intensity       = ticket['histogram']
                     coordinates     = ticket['bin_center']
                     cursor_up       = numpy.where(coordinates < _min)
@@ -545,7 +605,6 @@ class AbstractHybridScreen():
     def _no_lost_rays_from_oe(self, input_parameters : HybridInputParameters): raise NotImplementedError
     @abstractmethod
     def _calculate_geometrical_parameters(self, input_parameters: HybridInputParameters): raise NotImplementedError
-
     @abstractmethod
     def _extract_calculation_parameters(self, input_parameters: HybridInputParameters): raise NotImplementedError
 
