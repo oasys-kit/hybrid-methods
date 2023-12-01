@@ -390,25 +390,15 @@ class HybridCalculationResult():
     @geometry_analysis.setter
     def geometry_analysis(self, value : HybridGeometryAnalysis): self.geometry_analysis = value
 
-'''
-    crl_error_profiles = None
-    crl_material = None
-    crl_delta = None
-    crl_scaling_factor = 1.0
-'''
+
 '''
 class HybridCalculationParameters(object):
-    beam_not_cut_in_z = False
-    beam_not_cut_in_x = False
-
     shadow_oe_end = None
 
     original_beam_history = None
 
     image_plane_beam = None
     image_plane_beam_lost = None
-    ff_beam = None
-    nf_beam = None
 
     screen_plane_beam = None
 
@@ -459,17 +449,6 @@ class HybridCalculationParameters(object):
     wIray_z = None
     wIray_2d = None
 
-    do_ff_x = True
-    do_ff_z = True
-
-    # Propagation output
-    dif_xp = None
-    dif_zp = None
-    dif_x = None
-    dif_z = None
-    dif_xpzp = None
-    dif_xz = None
-
     # Conversion Output
     dx_conv = None
     dz_conv = None
@@ -497,8 +476,12 @@ class AbstractHybridScreen():
         min_sagittal = -numpy.Inf
         is_infinite = False
 
-    class HybridCalculationParameters:
-        pass
+    class HybridCalculationParameters: # Keep generic to allow any possible variation with the chosen raytracing tool
+        def __init__(self): self.__calculation_parameters = {}
+
+        def get(self, parameter_name): return self.__calculation_parameters[parameter_name]
+        def set(self, parameter_name, parameter_value): self.__calculation_parameters[parameter_name] = parameter_value
+
 
     def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
         self._wave_optics_provider = wave_optics_provider
