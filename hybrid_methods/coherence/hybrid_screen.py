@@ -449,7 +449,7 @@ class AbstractHybridScreen():
 
         @property
         def is_infinite(self) -> bool: return self.__is_infinite
-        @min_sagittal.setter
+        @is_infinite.setter
         def is_infinite(self, value: bool): self.__is_infinite = value
 
         
@@ -522,137 +522,137 @@ class AbstractHybridScreen():
 
         @property
         def wavelength(self) -> float: return self.__wavelength
-        @energy.setter
+        @wavelength.setter
         def wavelength(self, value: float): self.__wavelength = value
 
         @property
         def xx_screen(self) -> numpy.ndarray: return self.__xx_screen
-        @energy.setter
+        @xx_screen.setter
         def xx_screen(self, value: numpy.ndarray): self.__xx_screen = value
 
         @property
         def zz_screen(self) -> numpy.ndarray: return self.__zz_screen
-        @energy.setter
+        @zz_screen.setter
         def zz_screen(self, value: numpy.ndarray): self.__zz_screen = value
 
         @property
         def xp_screen(self) -> numpy.ndarray: return self.__xp_screen
-        @energy.setter
+        @xp_screen.setter
         def xp_screen(self, value: numpy.ndarray): self.__xp_screen = value
 
         @property
         def yp_screen(self) -> numpy.ndarray: return self.__yp_screen
-        @energy.setter
+        @yp_screen.setter
         def yp_screen(self, value: numpy.ndarray): self.__yp_screen = value
 
         @property
         def zp_screen(self) -> numpy.ndarray: return self.__zp_screen
-        @energy.setter
+        @zp_screen.setter
         def zp_screen(self, value: numpy.ndarray): self.__zp_screen = value
 
         @property
         def x_min(self) -> float: return self.__x_min
-        @energy.setter
+        @x_min.setter
         def x_min(self, value: float): self.__x_min = value
 
         @property
         def x_max(self) -> float: return self.__x_max
-        @energy.setter
+        @x_max.setter
         def x_max(self, value: float): self.__x_max = value
 
         @property
         def z_min(self) -> float: return self.__z_min
-        @energy.setter
+        @z_min.setter
         def z_min(self, value: float): self.__z_min = value
 
         @property
         def z_max(self) -> float: return self.__z_max
-        @energy.setter
+        @z_max.setter
         def z_max(self, value: float): self.__z_max = value
 
         @property
         def dx_rays(self) -> numpy.ndarray: return self.__dx_rays
-        @energy.setter
+        @dx_rays.setter
         def dx_rays(self, value: numpy.ndarray): self.__dx_rays = value
 
         @property
         def dz_rays(self) -> numpy.ndarray: return self.__dz_rays
-        @energy.setter
+        @dz_rays.setter
         def dz_rays(self, value: numpy.ndarray): self.__dz_rays = value
 
         @property
         def dif_x(self) -> ScaledArray: return self.__dif_x
-        @energy.setter
+        @dif_x.setter
         def dif_x(self, value: ScaledArray): self.__dif_x = value
 
         @property
         def dif_z(self) -> ScaledArray: return self.__dif_z
-        @energy.setter
+        @dif_z.setter
         def dif_z(self, value: ScaledArray): self.__dif_z = value
 
         @property
         def dif_xp(self) -> ScaledArray: return self.__dif_xp
-        @energy.setter
+        @dif_xp.setter
         def dif_xp(self, value: ScaledArray): self.__dif_xp = value
 
         @property
         def dif_zp(self) -> ScaledArray: return self.__dif_zp
-        @energy.setter
+        @dif_zp.setter
         def dif_zp(self, value: ScaledArray): self.__dif_zp = value
 
         @property
         def dif_xpzp(self) -> ScaledMatrix: return self.__dif_xpzp
-        @energy.setter
+        @dif_xpzp.setter
         def dif_xpzp(self, value: ScaledMatrix): self.__dif_xpzp = value
 
         @property
         def dx_convolution(self) -> numpy.ndarray: return self.__dx_convolution
-        @energy.setter
+        @dx_convolution.setter
         def dx_convolution(self, value: numpy.ndarray): self.__dx_convolution = value
 
         @property
         def dz_convolution(self) -> numpy.ndarray: return self.__dz_convolution
-        @energy.setter
+        @dz_convolution.setter
         def dz_convolution(self, value: numpy.ndarray): self.__dz_convolution = value
 
         @property
         def xx_propagated(self) -> numpy.ndarray: return self.__xx_propagated
-        @energy.setter
+        @xx_propagated.setter
         def xx_propagated(self, value: numpy.ndarray): self.__xx_propagated = value
 
         @property
         def zz_propagated(self) -> numpy.ndarray: return self.__zz_propagated
-        @energy.setter
+        @zz_propagated.setter
         def zz_propagated(self, value: numpy.ndarray): self.__zz_propagated = value
 
         @property
         def xx_image_ff(self) -> numpy.ndarray: return self.__xx_image_ff
-        @energy.setter
+        @xx_image_ff.setter
         def xx_image_ff(self, value: numpy.ndarray): self.__xx_image_ff = value
 
         @property
         def xx_image_nf(self) -> numpy.ndarray: return self.__xx_image_nf
-        @energy.setter
+        @xx_image_nf.setter
         def xx_image_nf(self, value: numpy.ndarray): self.__xx_image_nf = value
 
         @property
         def zz_image_ff(self) -> numpy.ndarray: return self.__zz_image_ff
-        @energy.setter
+        @zz_image_ff.setter
         def zz_image_ff(self, value: numpy.ndarray): self.__zz_image_ff = value
 
         @property
         def zz_image_nf(self) -> numpy.ndarray: return self.__zz_image_nf
-        @energy.setter
+        @zz_image_nf.setter
         def zz_image_nf(self, value: numpy.ndarray): self.__zz_image_nf = value
 
         @property
         def ff_beam(self) -> HybridBeamWrapper: return self.__ff_beam
-        @energy.setter
+        @ff_beam.setter
         def ff_beam(self, value: HybridBeamWrapper): self.__ff_beam = value
 
         @property
         def nf_beam(self) -> HybridBeamWrapper: return self.__nf_beam
-        @energy.setter
+        @nf_beam.setter
         def nf_beam(self, value: HybridBeamWrapper): self.__nf_beam = value
 
         def get(self, parameter_name): return self.__calculation_parameters.get(parameter_name, None)
@@ -794,9 +794,11 @@ class AbstractHybridScreen():
     # CALCULATION OF ALL DATA ON THE HYBRID SCREEN
 
     def _manage_initial_screen_projection(self, input_parameters: HybridInputParameters) -> CalculationParameters:
-        calculation_parametes = self._manage_common_initial_screen_projection_data(input_parameters)
+        calculation_parameters = self._manage_common_initial_screen_projection_data(input_parameters)
 
-        self._manage_specific_initial_screen_projection_data(input_parameters, calculation_parametes)
+        self._manage_specific_initial_screen_projection_data(input_parameters, calculation_parameters)
+
+        return calculation_parameters
 
     @abstractmethod
     def _manage_common_initial_screen_projection_data(self, input_parameters: HybridInputParameters) -> CalculationParameters: raise NotImplementedError
@@ -818,12 +820,12 @@ class AbstractHybridScreen():
         if input_parameters.propagation_type in [HybridPropagationType.FAR_FIELD, HybridPropagationType.BOTH]:
             if input_parameters.far_field_image_distance < 0.0:
                 input_parameters.far_field_image_distance = ray_tracing_image_plane
-                input_parameters.widget.status_message("FF image distance not set (<-1), set as T_IMAGE" + str(ray_tracing_image_plane))
+                input_parameters.listener.status_message("FF image distance not set (<-1), set as T_IMAGE" + str(ray_tracing_image_plane))
             else:
                 if (input_parameters.far_field_image_distance == ray_tracing_image_plane):
-                    input_parameters.widget.status_message("Defined FF image distance is different from T_IMAGE, used the defined distance = " + str(input_parameters.far_field_image_distance))
+                    input_parameters.listener.status_message("Defined FF image distance is different from T_IMAGE, used the defined distance = " + str(input_parameters.far_field_image_distance))
                 else:
-                    input_parameters.widget.status_message("FF image distance = " + str(input_parameters.far_field_image_distance))
+                    input_parameters.listener.status_message("FF image distance = " + str(input_parameters.far_field_image_distance))
 
         if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
             if input_parameters.near_field_image_distance < 0.0: 
@@ -851,28 +853,28 @@ class AbstractHybridScreen():
         #
         histogram_s, bins_s, histogram_t, bins_t, histogram_2D = self._get_screen_plane_histograms(input_parameters, calculation_parameters)
 
-        if input_parameters.ghy_diff_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in X
+        if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in X
             if (input_parameters.n_bins_x < 0): input_parameters.n_bins_x = 200
 
             input_parameters.n_bins_x = min(input_parameters.n_bins_x, round(len(calculation_parameters.xx_screen) / 20))  # xshi change from 100 to 20
             input_parameters.n_bins_x = max(input_parameters.n_bins_x, 10)
 
             calculation_parameters.wIray_x = ScaledArray.initialize_from_range(histogram_s, bins_s[0], bins_s[-1])
-        elif input_parameters.ghy_diff_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in Z
+        elif input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in Z
             if (input_parameters.n_bins_z < 0): input_parameters.n_bins_z = 200
 
-            input_parameters.nbins_z = min(input_parameters.nbins_z, round(len(calculation_parameters.zz_screen) / 20))  # xshi change from 100 to 20
-            input_parameters.nbins_z = max(input_parameters.nbins_z, 10)
+            input_parameters.n_bins_z = min(input_parameters.n_bins_z, round(len(calculation_parameters.zz_screen) / 20))  # xshi change from 100 to 20
+            input_parameters.n_bins_z = max(input_parameters.n_bins_z, 10)
 
             calculation_parameters.wIray_z = ScaledArray.initialize_from_range(histogram_t, bins_t[0], bins_t[-1])
-        elif input_parameters.ghy_diff_plane == 3:  # 2D
-            if (input_parameters.ghy_nbins_x < 0): input_parameters.ghy_nbins_x = 50
-            if (input_parameters.ghy_nbins_z < 0): input_parameters.ghy_nbins_z = 50
+        elif input_parameters.diffraction_plane == HybridDiffractionPlane.BOTH_2D:  # 2D
+            if (input_parameters.n_bins_x < 0): input_parameters.n_bins_x = 50
+            if (input_parameters.n_bins_z < 0): input_parameters.n_bins_z = 50
 
-            input_parameters.ghy_nbins_x = min(input_parameters.nbins_x, round(numpy.sqrt(len(calculation_parameters.xx_screen) / 10)))
-            input_parameters.ghy_nbins_z = min(input_parameters.nbins_z, round(numpy.sqrt(len(calculation_parameters.zz_screen) / 10)))
-            input_parameters.ghy_nbins_x = max(input_parameters.nbins_x, 10)
-            input_parameters.ghy_nbins_z = max(input_parameters.nbins_z, 10)
+            input_parameters.n_bins_x = min(input_parameters.n_bins_x, round(numpy.sqrt(len(calculation_parameters.xx_screen) / 10)))
+            input_parameters.n_bins_z = min(input_parameters.n_bins_z, round(numpy.sqrt(len(calculation_parameters.zz_screen) / 10)))
+            input_parameters.n_bins_x = max(input_parameters.n_bins_x, 10)
+            input_parameters.n_bins_z = max(input_parameters.n_bins_z, 10)
 
             calculation_parameters.wIray_x  = ScaledArray.initialize_from_range(histogram_s, bins_s[0], bins_s[-1])
             calculation_parameters.wIray_z  = ScaledArray.initialize_from_range(histogram_t, bins_t[0], bins_t[-1])
