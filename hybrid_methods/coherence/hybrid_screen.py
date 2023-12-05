@@ -47,6 +47,7 @@
 import numpy
 import copy
 from abc import abstractmethod
+import xraylib
 
 from wofry.propagator.propagator import PropagationManager, PropagationParameters, PropagationElements
 from wofry.propagator.wavefront import Wavefront
@@ -233,8 +234,8 @@ class HybridInputParameters():
                  optical_element: HybridOEWrapper,
                  diffraction_plane : int = HybridDiffractionPlane.TANGENTIAL,
                  propagation_type : int = HybridPropagationType.FAR_FIELD,
-                 focal_length : float = -1,
-                 propagation_distance : float = -1,
+                 far_field_image_distance : float = -1,
+                 near_field_image_distance : float = -1,
                  n_bins_x : int = 200,
                  n_bins_z : int = 200,
                  n_peaks : int = 20,
@@ -242,22 +243,22 @@ class HybridInputParameters():
                  analyze_geometry : bool = True,
                  random_seed : int = 0,
                  **kwargs):
-        self.__listener                 = listener
-        self.__beam                     = beam
-        self.__original_beam            = beam.duplicate()
-        self.__optical_element          = optical_element
-        self.__original_optical_element = optical_element.duplicate()
-        self.__diffraction_plane        = diffraction_plane
-        self.__focal_length             = focal_length
-        self.__propagation_distance     = propagation_distance
-        self.__propagation_type         = propagation_type
-        self.__n_bins_x                 = n_bins_x
-        self.__n_bins_z                 = n_bins_z
-        self.__n_peaks                  = n_peaks
-        self.__fft_n_pts                = fft_n_pts
-        self.__analyze_geometry         = analyze_geometry
-        self.__random_seed              = random_seed
-        self.__additional_parameters    = kwargs
+        self.__listener                  = listener
+        self.__beam                      = beam
+        self.__original_beam             = beam.duplicate()
+        self.__optical_element           = optical_element
+        self.__original_optical_element  = optical_element.duplicate()
+        self.__diffraction_plane         = diffraction_plane
+        self.__propagation_type          = propagation_type
+        self.__far_field_image_distance  = far_field_image_distance
+        self.__near_field_image_distance = near_field_image_distance
+        self.__n_bins_x                  = n_bins_x
+        self.__n_bins_z                  = n_bins_z
+        self.__n_peaks                   = n_peaks
+        self.__fft_n_pts                 = fft_n_pts
+        self.__analyze_geometry          = analyze_geometry
+        self.__random_seed               = random_seed
+        self.__additional_parameters     = kwargs
 
     @property
     def listener(self) -> HybridListener: return self.__listener
@@ -272,11 +273,11 @@ class HybridInputParameters():
     @property
     def diffraction_plane(self) -> int: return self.__diffraction_plane
     @property
-    def focal_length(self) -> float: return self.__focal_length
-    @property
-    def propagation_distance(self) -> float: return self.__propagation_distance
-    @property
     def propagation_type(self) -> int: return self.__propagation_type
+    @property
+    def far_field_image_distance(self) -> float: return self.__far_field_image_distance
+    @property
+    def near_field_image_distance(self) -> float: return self.__near_field_image_distance
     @property
     def n_bins_x(self) -> int: return self.__n_bins_x
     @property
@@ -291,10 +292,10 @@ class HybridInputParameters():
     def random_seed(self) -> int: return self.__random_seed
 
     # INPUT PARAMETERS TO BE CHANGED BY CALCULATION
-    @focal_length.setter
-    def focal_length(self, value : float): self.__focal_length = value
-    @propagation_distance.setter
-    def propagation_distance(self, value : float): self.__propagation_distance = value
+    @far_field_image_distance.setter
+    def far_field_image_distance(self, value : float): self.__far_field_image_distance = value
+    @near_field_image_distance.setter
+    def near_field_image_distance(self, value : float): self.__near_field_image_distance = value
     @n_bins_x.setter
     def n_bins_x(self, value : int): self.__n_bins_x = value
     @n_bins_z.setter
@@ -390,98 +391,273 @@ class HybridCalculationResult():
     @geometry_analysis.setter
     def geometry_analysis(self, value : HybridGeometryAnalysis): self.geometry_analysis = value
 
-
-'''
-class HybridCalculationParameters(object):
-    shadow_oe_end = None
-
-    original_beam_history = None
-
-    image_plane_beam = None
-    image_plane_beam_lost = None
-
-    screen_plane_beam = None
-
-    # Screen
-    wenergy     = None
-    wwavelength = None
-    xp_screen   = None
-    yp_screen   = None
-    zp_screen   = None
-    ref_screen  = None
-    xx_screen = None
-    ghy_x_min = 0.0
-    ghy_x_max = 0.0
-    zz_screen = None
-    ghy_z_min = 0.0
-    ghy_z_max = 0.0
-    dx_ray = None
-    dz_ray = None
-    gwavelength = 0.0
-    gknum = 0.0
-
-    # Mirror
-    xx_mirr = None
-    zz_mirr = None
-    angle_inc = None
-    angle_ref = None
-
-    # Mirror Surface
-    w_mirr_1D_values = None
-    w_mirr_2D_values = None
-
-    # Mirror Fitted Functions
-    wangle_x = None
-    wangle_z = None
-    wangle_ref_x = None
-    wangle_ref_z = None
-    wl_x     = None
-    wl_z     = None
-
-    xx_focal_ray = None
-    zz_focal_ray = None
-
-    w_mirror_lx = None
-    w_mirror_lz = None
-    w_mirror_l = None
-
-    wIray_x = None
-    wIray_z = None
-    wIray_2d = None
-
-    # Conversion Output
-    dx_conv = None
-    dz_conv = None
-    xx_image_ff = None
-    zz_image_ff = None
-    xx_image_nf = None
-    zz_image_nf = None
-
-    crl_delta = None
-'''
-
 # -------------------------------------------------------------
 # HYBRID SCREEN OBJECT
 # -------------------------------------------------------------
 
 class AbstractHybridScreen():
-    #inner classes for calculations only
+    #**************************************
+    #inner classes: for internal calculations only
+    #**************************************
 
     class GeometricalParameters:
-        ticket_tangential = None
-        ticket_sagittal = None
-        max_tangential = numpy.Inf
-        min_tangential = -numpy.Inf
-        max_sagittal = numpy.Inf
-        min_sagittal = -numpy.Inf
-        is_infinite = False
+        def __init__(self,
+                     ticket_tangential: dict=None,
+                     ticket_sagittal: dict = None,
+                     max_tangential: float = numpy.Inf,
+                     min_tangential: float = -numpy.Inf,
+                     max_sagittal: float = numpy.Inf,
+                     min_sagittal: float = -numpy.Inf,
+                     is_infinite: bool = False):
+            self.__ticket_tangential = ticket_tangential
+            self.__ticket_sagittal   = ticket_sagittal  
+            self.__max_tangential    = max_tangential   
+            self.__min_tangential    = min_tangential   
+            self.__max_sagittal      = max_sagittal     
+            self.__min_sagittal      = min_sagittal     
+            self.__is_infinite       = is_infinite      
+        
+        @property
+        def ticket_tangential(self) -> dict: return self.__ticket_tangential
+        @ticket_tangential.setter
+        def ticket_tangential(self, value: dict): self.__ticket_tangential = value
+        
+        @property
+        def ticket_sagittal(self) -> dict: return self.__ticket_sagittal
+        @ticket_sagittal.setter
+        def ticket_sagittal(self, value: dict): self.__ticket_sagittal = value
 
-    class HybridCalculationParameters: # Keep generic to allow any possible variation with the chosen raytracing tool
-        def __init__(self): self.__calculation_parameters = {}
+        @property
+        def max_tangential(self) -> float: return self.__max_tangential
+        @max_tangential.setter
+        def max_tangential(self, value: float): self.__max_tangential = value
 
-        def get(self, parameter_name): return self.__calculation_parameters[parameter_name]
+        @property
+        def min_tangential(self) -> float: return self.__min_tangential
+        @min_tangential.setter
+        def min_tangential(self, value: float): self.__min_tangential = value
+
+        @property
+        def max_sagittal(self) -> float: return self.__max_sagittal
+        @max_sagittal.setter
+        def max_sagittal(self, value: float): self.__max_sagittal = value
+        
+        @property
+        def min_sagittal(self) -> float: return self.__min_sagittal
+        @min_sagittal.setter
+        def min_sagittal(self, value: float): self.__min_sagittal = value
+
+        @property
+        def is_infinite(self) -> bool: return self.__is_infinite
+        @min_sagittal.setter
+        def is_infinite(self, value: bool): self.__is_infinite = value
+
+        
+    class CalculationParameters: # Keep generic to allow any possible variation with the chosen raytracing tool
+        def __init__(self,
+                     energy: float=None,
+                     wavelength: float=None,
+                     xx_screen: numpy.ndarray=None,
+                     zz_screen: numpy.ndarray=None,
+                     xp_screen: numpy.ndarray=None,
+                     yp_screen: numpy.ndarray=None,
+                     zp_screen: numpy.ndarray=None,
+                     x_min: float=None,
+                     x_max: float=None,
+                     z_min: float=None,
+                     z_max: float=None,
+                     dx_rays: numpy.ndarray=None,
+                     dz_rays: numpy.ndarray=None,
+                     dif_x: ScaledArray=None,
+                     dif_z: ScaledArray=None,
+                     dif_xp: ScaledArray=None,
+                     dif_zp: ScaledArray=None,
+                     dif_xpzp: ScaledMatrix=None,
+                     dx_convolution: numpy.ndarray=None,
+                     dz_convolution: numpy.ndarray=None,
+                     xx_propagated: numpy.ndarray=None,
+                     zz_propagated: numpy.ndarray=None,
+                     xx_image_ff: numpy.ndarray=None,
+                     zz_image_ff: numpy.ndarray=None,
+                     xx_image_nf: numpy.ndarray=None,
+                     zz_image_nf: numpy.ndarray=None,
+                     ff_beam: HybridBeamWrapper=None,
+                     nf_beam: HybridBeamWrapper=None,
+                     ): 
+            self.__energy         = energy
+            self.__wavelength     = wavelength
+            self.__xp_screen      = xp_screen
+            self.__yp_screen      = yp_screen
+            self.__zp_screen      = zp_screen
+            self.__xx_screen      = xx_screen
+            self.__zz_screen      = zz_screen
+            self.__x_min          = x_min
+            self.__x_max          = x_max
+            self.__z_min          = z_min
+            self.__z_max          = z_max
+            self.__dx_rays        = dx_rays
+            self.__dz_rays        = dz_rays
+            self.__dif_x          = dif_x
+            self.__dif_z          = dif_z
+            self.__dif_xp         = dif_xp
+            self.__dif_zp         = dif_zp
+            self.__dif_xpzp       = dif_xpzp
+            self.__dx_convolution = dx_convolution
+            self.__dz_convolution = dz_convolution
+            self.__xx_propagated       = xx_propagated
+            self.__zz_propagated       = zz_propagated
+            self.__xx_image_ff    = xx_image_ff
+            self.__zz_image_ff    = zz_image_ff
+            self.__xx_image_nf    = xx_image_nf
+            self.__zz_image_nf    = zz_image_nf
+            self.__ff_beam        = ff_beam
+            self.__nf_beam        = nf_beam
+
+            self.__calculation_parameters = {}
+
+        @property
+        def energy(self) -> float: return self.__energy
+        @energy.setter
+        def energy(self, value: float): self.__energy = value
+
+        @property
+        def wavelength(self) -> float: return self.__wavelength
+        @energy.setter
+        def wavelength(self, value: float): self.__wavelength = value
+
+        @property
+        def xx_screen(self) -> numpy.ndarray: return self.__xx_screen
+        @energy.setter
+        def xx_screen(self, value: numpy.ndarray): self.__xx_screen = value
+
+        @property
+        def zz_screen(self) -> numpy.ndarray: return self.__zz_screen
+        @energy.setter
+        def zz_screen(self, value: numpy.ndarray): self.__zz_screen = value
+
+        @property
+        def xp_screen(self) -> numpy.ndarray: return self.__xp_screen
+        @energy.setter
+        def xp_screen(self, value: numpy.ndarray): self.__xp_screen = value
+
+        @property
+        def yp_screen(self) -> numpy.ndarray: return self.__yp_screen
+        @energy.setter
+        def yp_screen(self, value: numpy.ndarray): self.__yp_screen = value
+
+        @property
+        def zp_screen(self) -> numpy.ndarray: return self.__zp_screen
+        @energy.setter
+        def zp_screen(self, value: numpy.ndarray): self.__zp_screen = value
+
+        @property
+        def x_min(self) -> float: return self.__x_min
+        @energy.setter
+        def x_min(self, value: float): self.__x_min = value
+
+        @property
+        def x_max(self) -> float: return self.__x_max
+        @energy.setter
+        def x_max(self, value: float): self.__x_max = value
+
+        @property
+        def z_min(self) -> float: return self.__z_min
+        @energy.setter
+        def z_min(self, value: float): self.__z_min = value
+
+        @property
+        def z_max(self) -> float: return self.__z_max
+        @energy.setter
+        def z_max(self, value: float): self.__z_max = value
+
+        @property
+        def dx_rays(self) -> numpy.ndarray: return self.__dx_rays
+        @energy.setter
+        def dx_rays(self, value: numpy.ndarray): self.__dx_rays = value
+
+        @property
+        def dz_rays(self) -> numpy.ndarray: return self.__dz_rays
+        @energy.setter
+        def dz_rays(self, value: numpy.ndarray): self.__dz_rays = value
+
+        @property
+        def dif_x(self) -> ScaledArray: return self.__dif_x
+        @energy.setter
+        def dif_x(self, value: ScaledArray): self.__dif_x = value
+
+        @property
+        def dif_z(self) -> ScaledArray: return self.__dif_z
+        @energy.setter
+        def dif_z(self, value: ScaledArray): self.__dif_z = value
+
+        @property
+        def dif_xp(self) -> ScaledArray: return self.__dif_xp
+        @energy.setter
+        def dif_xp(self, value: ScaledArray): self.__dif_xp = value
+
+        @property
+        def dif_zp(self) -> ScaledArray: return self.__dif_zp
+        @energy.setter
+        def dif_zp(self, value: ScaledArray): self.__dif_zp = value
+
+        @property
+        def dif_xpzp(self) -> ScaledMatrix: return self.__dif_xpzp
+        @energy.setter
+        def dif_xpzp(self, value: ScaledMatrix): self.__dif_xpzp = value
+
+        @property
+        def dx_convolution(self) -> numpy.ndarray: return self.__dx_convolution
+        @energy.setter
+        def dx_convolution(self, value: numpy.ndarray): self.__dx_convolution = value
+
+        @property
+        def dz_convolution(self) -> numpy.ndarray: return self.__dz_convolution
+        @energy.setter
+        def dz_convolution(self, value: numpy.ndarray): self.__dz_convolution = value
+
+        @property
+        def xx_propagated(self) -> numpy.ndarray: return self.__xx_propagated
+        @energy.setter
+        def xx_propagated(self, value: numpy.ndarray): self.__xx_propagated = value
+
+        @property
+        def zz_propagated(self) -> numpy.ndarray: return self.__zz_propagated
+        @energy.setter
+        def zz_propagated(self, value: numpy.ndarray): self.__zz_propagated = value
+
+        @property
+        def xx_image_ff(self) -> numpy.ndarray: return self.__xx_image_ff
+        @energy.setter
+        def xx_image_ff(self, value: numpy.ndarray): self.__xx_image_ff = value
+
+        @property
+        def xx_image_nf(self) -> numpy.ndarray: return self.__xx_image_nf
+        @energy.setter
+        def xx_image_nf(self, value: numpy.ndarray): self.__xx_image_nf = value
+
+        @property
+        def zz_image_ff(self) -> numpy.ndarray: return self.__zz_image_ff
+        @energy.setter
+        def zz_image_ff(self, value: numpy.ndarray): self.__zz_image_ff = value
+
+        @property
+        def zz_image_nf(self) -> numpy.ndarray: return self.__zz_image_nf
+        @energy.setter
+        def zz_image_nf(self, value: numpy.ndarray): self.__zz_image_nf = value
+
+        @property
+        def ff_beam(self) -> HybridBeamWrapper: return self.__ff_beam
+        @energy.setter
+        def ff_beam(self, value: HybridBeamWrapper): self.__ff_beam = value
+
+        @property
+        def nf_beam(self) -> HybridBeamWrapper: return self.__nf_beam
+        @energy.setter
+        def nf_beam(self, value: HybridBeamWrapper): self.__nf_beam = value
+
+        def get(self, parameter_name): return self.__calculation_parameters.get(parameter_name, None)
         def set(self, parameter_name, parameter_value): self.__calculation_parameters[parameter_name] = parameter_value
-
+        def has(self, parameter_name): return parameter_name in self.__calculation_parameters.keys()
 
     def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
         self._wave_optics_provider = wave_optics_provider
@@ -501,11 +677,30 @@ class AbstractHybridScreen():
             input_parameters.listener.status_message("Starting HYBRID calculation")
             input_parameters.listener.set_progress_bar(0)
 
-            calculation_parameters = self._extract_calculation_parameters(input_parameters)
+            calculation_parameters = self._manage_initial_screen_projection(input_parameters)
 
             input_parameters.listener.status_message("Analysis of Input Beam and OE completed")
             input_parameters.listener.set_progress_bar(10)
 
+            self._initialize_hybrid_calculation(input_parameters, calculation_parameters)
+
+            input_parameters.listener.status_message("Initialization if Hybrid calculation completed")
+            input_parameters.listener.set_progress_bar(20)
+
+            input_parameters.listener.status_message("Start Wavefront Propagation")
+
+            self._perform_wavefront_propagation(input_parameters, calculation_parameters)
+
+            input_parameters.listener.status_message("Start Ray Resampling")
+            input_parameters.listener.set_progress_bar(80)
+
+            self._convolve_wavefront_with_rays(input_parameters, calculation_parameters)
+
+            input_parameters.listener.status_message("Creating Output Beam")
+
+            self._generate_output_result(input_parameters, calculation_parameters, hybrid_result)
+            
+            return hybrid_result
 
         except HybridNotNecessaryWarning as w:
             input_parameters.listener.warning_message(message=str(w))
@@ -515,6 +710,9 @@ class AbstractHybridScreen():
                                                     geometry_analysis=geometry_analysis)
 
         return hybrid_result
+
+    # -----------------------------------------------
+    # INPUT ANALYSIS: CONGRUENCE AND GEOMETRY
 
     def _check_input_congruence(self, input_parameters : HybridInputParameters) -> HybridGeometryAnalysis:
         self._check_oe_congruence(input_parameters.optical_element)
@@ -528,7 +726,7 @@ class AbstractHybridScreen():
     @abstractmethod
     def _check_oe_displacements(self, input_parameters : HybridInputParameters): raise NotImplementedError
 
-    def _do_geometry_analysis(self, input_parameters : HybridInputParameters):
+    def _do_geometry_analysis(self, input_parameters : HybridInputParameters) -> HybridGeometryAnalysis:
         geometry_analysis = HybridGeometryAnalysis()
 
         if self._no_lost_rays_from_oe(input_parameters):
@@ -582,14 +780,189 @@ class AbstractHybridScreen():
                 elif geometry_analysis.has_result(HybridGeometryAnalysis.BEAM_NOT_CUT_TANGENTIALLY):
                     input_parameters.ghy_diff_plane = HybridDiffractionPlane.SAGITTAL
                     input_parameters.listener.warning_message("O.E. does not cut the beam in the Tangential plane:\nCalculation is done in Sagittal plane only")
+
     @classmethod
-    def _is_geometry_analysis_enabled(cls): return True
+    def _is_geometry_analysis_enabled(cls) -> bool: return True
+
     @abstractmethod
-    def _no_lost_rays_from_oe(self, input_parameters : HybridInputParameters): raise NotImplementedError
+    def _no_lost_rays_from_oe(self, input_parameters : HybridInputParameters) -> bool: raise NotImplementedError
+
     @abstractmethod
-    def _calculate_geometrical_parameters(self, input_parameters: HybridInputParameters): raise NotImplementedError
+    def _calculate_geometrical_parameters(self, input_parameters: HybridInputParameters) -> GeometricalParameters: raise NotImplementedError
+
+    # -----------------------------------------------
+    # CALCULATION OF ALL DATA ON THE HYBRID SCREEN
+
+    def _manage_initial_screen_projection(self, input_parameters: HybridInputParameters) -> CalculationParameters:
+        calculation_parametes = self._manage_common_initial_screen_projection_data(input_parameters)
+
+        self._manage_specific_initial_screen_projection_data(input_parameters, calculation_parametes)
+
     @abstractmethod
-    def _extract_calculation_parameters(self, input_parameters: HybridInputParameters): raise NotImplementedError
+    def _manage_common_initial_screen_projection_data(self, input_parameters: HybridInputParameters) -> CalculationParameters: raise NotImplementedError
+
+    def _manage_specific_initial_screen_projection_data(self, input_parameters: HybridInputParameters, calculation_parameters: CalculationParameters): pass
+
+
+
+    # -----------------------------------------------
+    # CREATION OF ALL DATA NECESSARY TO WAVEFRONT PROPAGATION
+
+    @abstractmethod
+    def _initialize_hybrid_calculation(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters):
+        ray_tracing_focal_plane, ray_tracing_image_plane = self._get_ray_tracing_planes(input_parameters, calculation_parameters)
+        
+        # --------------------------------------------------
+        # Propagation distances 
+        #
+        if input_parameters.propagation_type in [HybridPropagationType.FAR_FIELD, HybridPropagationType.BOTH]:
+            if input_parameters.far_field_image_distance < 0.0:
+                input_parameters.far_field_image_distance = ray_tracing_image_plane
+                input_parameters.widget.status_message("FF image distance not set (<-1), set as T_IMAGE" + str(ray_tracing_image_plane))
+            else:
+                if (input_parameters.far_field_image_distance == ray_tracing_image_plane):
+                    input_parameters.widget.status_message("Defined FF image distance is different from T_IMAGE, used the defined distance = " + str(input_parameters.far_field_image_distance))
+                else:
+                    input_parameters.widget.status_message("FF image distance = " + str(input_parameters.far_field_image_distance))
+
+        if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
+            if input_parameters.near_field_image_distance < 0.0: 
+                input_parameters.near_field_image_distance = ray_tracing_focal_plane
+                input_parameters.listener.status_message("NF image distance not set: set as SIMAG" + str(ray_tracing_focal_plane))
+            else:
+                if input_parameters.near_field_image_distance != ray_tracing_focal_plane:
+                    input_parameters.listener.status_message("Defined NF image distance is different from SIMAG, used the defined focal length = " + str(input_parameters.near_field_image_distance))
+                else:
+                    input_parameters.listener.status_message("NF image distance = " + str(input_parameters.near_field_image_distance))
+
+            # --------------------------------------------------
+            # propagated NF spatial distributions
+            #
+            if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2D, HybridDiffractionPlane.BOTH_2X1D]:
+                calculation_parameters.xx_propagated = copy.deepcopy(calculation_parameters.xx_screen) + \
+                                                       input_parameters.near_field_image_distance * numpy.tan(calculation_parameters.dx_ray)
+
+            if input_parameters.diffraction_plane == [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2D, HybridDiffractionPlane.BOTH_2X1D]:
+                calculation_parameters.zz_propagated = copy.deepcopy(calculation_parameters.zz_screen) + \
+                                                       input_parameters.near_field_image_distance * numpy.tan(calculation_parameters.dz_ray)
+
+        # --------------------------------------------------
+        # Intensity profiles (histogram): I_ray(z) curve
+        #
+        histogram_s, bins_s, histogram_t, bins_t, histogram_2D = self._get_screen_plane_histograms(input_parameters, calculation_parameters)
+
+        if input_parameters.ghy_diff_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in X
+            if (input_parameters.n_bins_x < 0): input_parameters.n_bins_x = 200
+
+            input_parameters.n_bins_x = min(input_parameters.n_bins_x, round(len(calculation_parameters.xx_screen) / 20))  # xshi change from 100 to 20
+            input_parameters.n_bins_x = max(input_parameters.n_bins_x, 10)
+
+            calculation_parameters.wIray_x = ScaledArray.initialize_from_range(histogram_s, bins_s[0], bins_s[-1])
+        elif input_parameters.ghy_diff_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in Z
+            if (input_parameters.n_bins_z < 0): input_parameters.n_bins_z = 200
+
+            input_parameters.nbins_z = min(input_parameters.nbins_z, round(len(calculation_parameters.zz_screen) / 20))  # xshi change from 100 to 20
+            input_parameters.nbins_z = max(input_parameters.nbins_z, 10)
+
+            calculation_parameters.wIray_z = ScaledArray.initialize_from_range(histogram_t, bins_t[0], bins_t[-1])
+        elif input_parameters.ghy_diff_plane == 3:  # 2D
+            if (input_parameters.ghy_nbins_x < 0): input_parameters.ghy_nbins_x = 50
+            if (input_parameters.ghy_nbins_z < 0): input_parameters.ghy_nbins_z = 50
+
+            input_parameters.ghy_nbins_x = min(input_parameters.nbins_x, round(numpy.sqrt(len(calculation_parameters.xx_screen) / 10)))
+            input_parameters.ghy_nbins_z = min(input_parameters.nbins_z, round(numpy.sqrt(len(calculation_parameters.zz_screen) / 10)))
+            input_parameters.ghy_nbins_x = max(input_parameters.nbins_x, 10)
+            input_parameters.ghy_nbins_z = max(input_parameters.nbins_z, 10)
+
+            calculation_parameters.wIray_x  = ScaledArray.initialize_from_range(histogram_s, bins_s[0], bins_s[-1])
+            calculation_parameters.wIray_z  = ScaledArray.initialize_from_range(histogram_t, bins_t[0], bins_t[-1])
+            calculation_parameters.wIray_2d = ScaledMatrix.initialize_from_range(histogram_2D, bins_s[0], bins_s[-1], bins_t[0], bins_t[-1])
+
+    @abstractmethod
+    def _get_ray_tracing_planes(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters): raise NotImplementedError
+
+    # -----------------------------------------------
+    # WAVEFRONT PROPAGATION
+
+    @abstractmethod
+    def _perform_wavefront_propagation(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters): raise NotImplementedError
+
+    # -----------------------------------------------
+    # CONVOLUTION WAVEOPTICS + RAYS
+
+    def _convolve_wavefront_with_rays(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters):
+        if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d calculation in x direction
+            if input_parameters.propagation_type in [HybridPropagationType.FAR_FIELD, HybridPropagationType.BOTH]:
+                s1d     = Sampler1D(calculation_parameters.dif_xp.get_values(), calculation_parameters.dif_xp.get_abscissas())
+                pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.xp_screen), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 1))
+                dx_conv = numpy.arctan(pos_dif) + calculation_parameters.dx_rays  # add the ray divergence kicks
+
+                calculation_parameters.dx_convolution = dx_conv
+                calculation_parameters.xx_image_ff    = calculation_parameters.xx_screen + input_parameters.far_field_image_distance * numpy.tan(dx_conv)  # ray tracing to the image plane
+            elif input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
+                s1d     = Sampler1D(calculation_parameters.dif_x.get_values(), calculation_parameters.dif_x.get_abscissas())
+                pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.xx_propagated), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 2))
+
+                calculation_parameters.xx_image_nf = pos_dif + calculation_parameters.xx_propagated
+        elif input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d calculation in z direction
+            if input_parameters.propagation_type in [HybridPropagationType.FAR_FIELD, HybridPropagationType.BOTH]:
+                s1d     = Sampler1D(calculation_parameters.dif_zp.get_values(), calculation_parameters.dif_zp.get_abscissas())
+                pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.xp_screen), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 1))
+                dz_conv =  numpy.arctan(pos_dif) + calculation_parameters.dz_rays  # add the ray divergence kicks
+
+                calculation_parameters.dz_convolution = dz_conv
+                calculation_parameters.zz_image_ff    = calculation_parameters.zz_screen + input_parameters.far_field_image_distance * numpy.tan(dz_conv)  # ray tracing to the image plane
+            elif input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
+                s1d     = Sampler1D(calculation_parameters.dif_z.get_values(), calculation_parameters.dif_z.get_abscissas())
+                pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.zz_propagated), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 2))
+
+                calculation_parameters.zz_image_nf = pos_dif + calculation_parameters.zz_propagated
+        elif input_parameters.diffraction_plane == HybridDiffractionPlane.BOTH_2D:  # 2D
+            s2d = Sampler2D(calculation_parameters.dif_xpzp.z_values,
+                            calculation_parameters.dif_xpzp.x_coord,
+                            calculation_parameters.dif_xpzp.y_coord)
+            pos_dif_x, pos_dif_z = s2d.get_n_sampled_points(len(calculation_parameters.zp_screen), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 5))
+            dx_conv              = numpy.arctan(pos_dif_x) + calculation_parameters.dx_ray  # add the ray divergence kicks
+            dz_conv              = numpy.arctan(pos_dif_z) + calculation_parameters.dz_ray  # add the ray divergence kicks
+
+            calculation_parameters.dx_conv     = dx_conv
+            calculation_parameters.dz_conv     = dz_conv
+            calculation_parameters.xx_image_ff = calculation_parameters.xx_screen + input_parameters.far_field_image_distance * numpy.tan(dx_conv)  # ray tracing to the image plane
+            calculation_parameters.zz_image_ff = calculation_parameters.zz_screen + input_parameters.far_field_image_distance * numpy.tan(dz_conv)  # ray tracing to the image plane
+
+    # -----------------------------------------------
+    # OUTPUT BEAM GENERATION
+
+    def _generate_output_result(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters, hybrid_result : HybridCalculationResult):
+        self._apply_convolution_to_rays(input_parameters, calculation_parameters)
+
+        hybrid_result.position_sagittal     = calculation_parameters.dif_x
+        hybrid_result.position_tangential   = calculation_parameters.dif_z
+        hybrid_result.divergence_sagittal   = calculation_parameters.dif_xp
+        hybrid_result.divergence_tangential = calculation_parameters.dif_zp
+        hybrid_result.divergence_2D         = calculation_parameters.dif_xpzp
+        hybrid_result.far_field_beam        = calculation_parameters.ff_beam
+        hybrid_result.near_field_beam       = calculation_parameters.nf_beam
+
+    @abstractmethod
+    def _apply_convolution_to_rays(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters): raise NotImplementedError
+
+
+# -------------------------------------------------------------
+# SUBCLASSES OF HYBRID SCREEN OBJECT - BY CALCULATION TYPE
+# -------------------------------------------------------------
+
+class MissingRequiredCalculationParameter(Exception):
+    def __init__(self, parameter_names):
+        self.__parameter_names = parameter_names
+
+        error_message = "missing required calculation parameter(s): "
+        for name in parameter_names: error_message += name + ","
+
+        super(MissingRequiredCalculationParameter, self).__init__(error_message[:-1])
+
+    @property
+    def parameter_names(self) -> list: return self.__parameter_names
 
 
 class AbstractSimpleApertureHybridScreen(AbstractHybridScreen):
@@ -607,16 +980,85 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
     @classmethod
     def get_specific_calculation_type(cls): return HybridCalculationType.MIRROR_OR_GRATING_SIZE
 
-class AbstractMirrorSizeAndErrorHybridScreen(AbstractMirrorOrGratingSizeHybridScreen):
+    def _manage_specific_initial_screen_projection_data(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters):
+        xx_mirr, yy_mirr                    = self._get_footprint_spatial_coordinates(input_parameters, calculation_parameters)
+        incidence_angles, reflection_angles = self._get_ray_angles(input_parameters, calculation_parameters)
+
+        calculation_parameters.set("incidence_angles",  incidence_angles)
+        calculation_parameters.set("reflection_angles", reflection_angles)
+
+        xx_screen = calculation_parameters.xx_screen
+        zz_screen = calculation_parameters.zz_screen
+
+        # generate theta(z) and l(z) curve over a continuous grid
+        if numpy.amax(xx_screen) == numpy.amin(xx_screen):
+            if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2D, HybridDiffractionPlane.BOTH_2X1D]:
+                raise Exception("Inconsistent calculation: Diffraction plane is set on SAGITTAL, but the beam has no extension in that direction")
+        else:
+            calculation_parameters.set("incidence_angle_function_x", numpy.poly1d(numpy.polyfit(xx_screen, incidence_angles, self.NPOLY_ANGLE)))
+            calculation_parameters.set("footprint_function_x",       numpy.poly1d(numpy.polyfit(xx_screen, xx_mirr,   self.NPOLY_L)))
+
+        if numpy.amax(zz_screen) == numpy.amin(zz_screen):
+            if input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2D, HybridDiffractionPlane.BOTH_2X1D]:
+                raise Exception("Inconsistent calculation: Diffraction plane is set on TANGENTIAL, but the beam has no extension in that direction")
+        else:
+            calculation_parameters.set("incidence_angle_function_z", numpy.poly1d(numpy.polyfit(zz_screen, incidence_angles, self.NPOLY_ANGLE)))
+            calculation_parameters.set("footprint_function_z",       numpy.poly1d(numpy.polyfit(zz_screen, yy_mirr,   self.NPOLY_L)))
+
+    @abstractmethod
+    def _get_footprint_spatial_coordinates(self, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters): raise NotImplementedError
+    @abstractmethod
+    def _get_ray_angles(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters): raise NotImplementedError
+
+class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSizeHybridScreen):
+    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
+        super(_AbstractMirrorOrGratingSizeAndErrorHybridScreen, self).__init__(wave_optics_provider)
+
+    @classmethod
+    def _is_geometry_analysis_enabled(cls): return False
+
+    def _manage_specific_initial_screen_projection_data(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters):
+        calculation_parameters = super(_AbstractMirrorOrGratingSizeAndErrorHybridScreen, self)._manage_specific_initial_screen_projection_data(input_parameters, calculation_parameters)
+
+        error_profile = self._get_error_profile(input_parameters, calculation_parameters)
+
+        w_mirror_lx = None
+        w_mirror_lz = None
+
+        if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2X1D, HybridDiffractionPlane.BOTH_2D]:  # X
+            offset_y_index = self._get_tangential_displacement_index(input_parameters, calculation_parameters)
+
+            w_mirror_lx = ScaledArray.initialize_from_steps(error_profile.z_values[:, int(len(error_profile.y_coord) / 2 - offset_y_index)],
+                                                            error_profile.x_coord[0],
+                                                            error_profile.x_coord[1] - error_profile.x_coord[0])
+
+        if input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2X1D, HybridDiffractionPlane.BOTH_2D]:  # Z
+            offset_x_index = self._get_sagittal_displacement_index(input_parameters, calculation_parameters)
+
+            w_mirror_lz = ScaledArray.initialize_from_steps(error_profile.z_values[int(len(calculation_parameters.w_mirr_2D_values.x_coord) / 2 - offset_x_index), :],
+                                                            error_profile.y_coord[0],
+                                                            error_profile.y_coord[1] - error_profile.y_coord[0])
+
+        calculation_parameters.set("error_profile_projection_s", w_mirror_lx)
+        calculation_parameters.set("error_profile_projection_t", w_mirror_lz)
+        calculation_parameters.set("error_profile",              error_profile)
+
+    @abstractmethod
+    def _get_error_profile(self, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters): raise NotImplementedError
+    @abstractmethod
+    def _get_tangential_displacement_index(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters): raise NotImplementedError
+    @abstractmethod
+    def _get_sagittal_displacement_index(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters): raise NotImplementedError
+
+
+class AbstractMirrorSizeAndErrorHybridScreen(_AbstractMirrorOrGratingSizeAndErrorHybridScreen):
     def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
         super(AbstractMirrorSizeAndErrorHybridScreen, self).__init__(wave_optics_provider)
 
     @classmethod
     def get_specific_calculation_type(cls): return HybridCalculationType.MIRROR_SIZE_AND_ERROR_PROFILE
-    @classmethod
-    def _is_geometry_analysis_enabled(cls): return False
 
-class AbstractGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSizeHybridScreen):
+class AbstractGratingSizeAndErrorHybridScreen(_AbstractMirrorOrGratingSizeAndErrorHybridScreen):
     def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
         super(AbstractGratingSizeAndErrorHybridScreen, self).__init__(wave_optics_provider)
 
@@ -625,12 +1067,37 @@ class AbstractGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSizeHybridS
     @classmethod
     def _is_geometry_analysis_enabled(cls): return False
 
+    def _manage_specific_initial_screen_projection_data(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters):
+        calculation_parameters = super(AbstractGratingSizeAndErrorHybridScreen, self)._manage_specific_initial_screen_projection_data(input_parameters, calculation_parameters)
+
+        reflection_angles = calculation_parameters.get("reflection_angles")
+
+        calculation_parameters.set("reflection_angle_function_x", numpy.poly1d(numpy.polyfit(calculation_parameters.xx_screen, reflection_angles, self.NPOLY_ANGLE)))
+        calculation_parameters.set("reflection_angle_function_z", numpy.poly1d(numpy.polyfit(calculation_parameters.zz_screen, reflection_angles, self.NPOLY_ANGLE)))
+
 class AbstractCRLSizeHybridScreen(AbstractHybridScreen):
     def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
         super(AbstractCRLSizeHybridScreen, self).__init__(wave_optics_provider)
 
     @classmethod
     def get_specific_calculation_type(cls): return HybridCalculationType.CRL_SIZE
+
+    def _initialize_hybrid_calculation(self, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters):
+        super(AbstractCRLSizeHybridScreen, self)._initialize_hybrid_calculation(input_parameters, calculation_parameters)
+
+        crl_delta = input_parameters.get("crl_delta")
+
+        if crl_delta is None: calculation_parameters.set("crl_delta", self.get_delta(input_parameters, calculation_parameters))
+        else:                 calculation_parameters.set("crl_delta", crl_delta)
+
+    @staticmethod
+    def get_delta(input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters):
+        material = input_parameters.get("crl_material")
+        density  = xraylib.ElementDensity(xraylib.SymbolToAtomicNumber(material))
+        energy   = calculation_parameters.energy/1000 # in KeV
+
+        return 1 - xraylib.Refractive_Index_Re(material, energy, density)
+
 
 class AbstractCRLSizeAndErrorHybridScreen(AbstractCRLSizeHybridScreen):
     def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
@@ -641,6 +1108,13 @@ class AbstractCRLSizeAndErrorHybridScreen(AbstractCRLSizeHybridScreen):
     @classmethod
     def _is_geometry_analysis_enabled(cls): return False
 
+    def _manage_specific_initial_screen_projection_data(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters):
+        calculation_parameters = super(AbstractCRLSizeAndErrorHybridScreen, self)._manage_specific_initial_screen_projection_data(input_parameters, calculation_parameters)
+
+        calculation_parameters.set("error_profiles", self._get_error_profiles(input_parameters, calculation_parameters))
+
+    @abstractmethod
+    def _get_error_profiles(self, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters): raise NotImplementedError
 
 # -------------------------------------------------------------
 # HYBRID SCREEN FACTORY METHOD
