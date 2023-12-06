@@ -163,10 +163,8 @@ class _DefaultWaveOpticsProvider(HybridWaveOpticsProvider):
         propagation_elements.add_beamline_element(BeamlineElement(optical_element=Screen1D() if dimension==1 else Screen2D(),
                                                                   coordinates=ElementCoordinates(p=propagation_distance)))
 
-        if propagation_type == HybridPropagationType.FAR_FIELD:
-            if dimension ==  1:  handler_name = Fraunhofer1D.HANDLER_NAME
-            elif dimension == 2: handler_name = Fraunhofer2D.HANDLER_NAME
-        elif propagation_type == HybridPropagationType.NEAR_FIELD:
+        # N.B.: Hybrid uses Fresnel Propagator only, but it could be different in the future
+        if propagation_type in [HybridPropagationType.FAR_FIELD, HybridPropagationType.NEAR_FIELD]:
             if dimension ==  1:  handler_name = Fresnel1D.HANDLER_NAME
             elif dimension == 2: handler_name = Fresnel2D.HANDLER_NAME
 
@@ -240,7 +238,6 @@ class HybridInputParameters():
                  optical_element: HybridOEWrapper,
                  diffraction_plane : int = HybridDiffractionPlane.TANGENTIAL,
                  propagation_type : int = HybridPropagationType.FAR_FIELD,
-                 propagation_distance : float = -1,
                  n_bins_x : int = 200,
                  n_bins_z : int = 200,
                  n_peaks : int = 20,
@@ -248,21 +245,20 @@ class HybridInputParameters():
                  analyze_geometry : bool = True,
                  random_seed : int = 0,
                  **kwargs):
-        self.__listener                  = listener
-        self.__beam                      = beam
-        self.__original_beam             = beam.duplicate()
-        self.__optical_element           = optical_element
-        self.__original_optical_element  = optical_element.duplicate()
-        self.__diffraction_plane         = diffraction_plane
-        self.__propagation_type          = propagation_type
-        self.__propagation_distance      = propagation_distance
-        self.__n_bins_x                  = n_bins_x
-        self.__n_bins_z                  = n_bins_z
-        self.__n_peaks                   = n_peaks
-        self.__fft_n_pts                 = fft_n_pts
-        self.__analyze_geometry          = analyze_geometry
-        self.__random_seed               = random_seed
-        self.__additional_parameters     = kwargs
+        self.__listener                        = listener
+        self.__beam                            = beam
+        self.__original_beam                   = beam.duplicate()
+        self.__optical_element                 = optical_element
+        self.__original_optical_element        = optical_element.duplicate()
+        self.__diffraction_plane               = diffraction_plane
+        self.__propagation_type                = propagation_type
+        self.__n_bins_x                        = n_bins_x
+        self.__n_bins_z                        = n_bins_z
+        self.__n_peaks                         = n_peaks
+        self.__fft_n_pts                       = fft_n_pts
+        self.__analyze_geometry                = analyze_geometry
+        self.__random_seed                     = random_seed
+        self.__additional_parameters           = kwargs
 
     @property
     def listener(self) -> HybridListener: return self.__listener
@@ -279,8 +275,6 @@ class HybridInputParameters():
     @property
     def propagation_type(self) -> int: return self.__propagation_type
     @property
-    def propagation_distance(self) -> float: return self.__propagation_distance
-    @property
     def n_bins_x(self) -> int: return self.__n_bins_x
     @property
     def n_bins_z(self) -> int: return self.__n_bins_z
@@ -294,8 +288,6 @@ class HybridInputParameters():
     def random_seed(self) -> int: return self.__random_seed
 
     # INPUT PARAMETERS TO BE CHANGED BY CALCULATION
-    @propagation_distance.setter
-    def propagation_distance(self, value : float): self.__propagation_distance = value
     @n_bins_x.setter
     def n_bins_x(self, value : int): self.__n_bins_x = value
     @n_bins_z.setter
@@ -457,6 +449,7 @@ class AbstractHybridScreen():
         def __init__(self,
                      energy: float=None,
                      wavelength: float=None,
+                     image_plane_distance: float=None,
                      xx_screen: numpy.ndarray=None,
                      zz_screen: numpy.ndarray=None,
                      xp_screen: numpy.ndarray=None,
@@ -487,37 +480,38 @@ class AbstractHybridScreen():
                      ff_beam: HybridBeamWrapper=None,
                      nf_beam: HybridBeamWrapper=None,
                      ): 
-            self.__energy         = energy
-            self.__wavelength     = wavelength
-            self.__xp_screen      = xp_screen
-            self.__yp_screen      = yp_screen
-            self.__zp_screen      = zp_screen
-            self.__xx_screen      = xx_screen
-            self.__zz_screen      = zz_screen
-            self.__x_min          = x_min
-            self.__x_max          = x_max
-            self.__z_min          = z_min
-            self.__z_max          = z_max
-            self.__wIray_x        = wIray_x
-            self.__wIray_z        = wIray_z
-            self.__wIray_2D       = wIray_2D
-            self.__dx_rays        = dx_rays
-            self.__dz_rays        = dz_rays
-            self.__dif_x          = dif_x
-            self.__dif_z          = dif_z
-            self.__dif_xp         = dif_xp
-            self.__dif_zp         = dif_zp
-            self.__dif_xpzp       = dif_xpzp
-            self.__dx_convolution = dx_convolution
-            self.__dz_convolution = dz_convolution
-            self.__xx_propagated       = xx_propagated
-            self.__zz_propagated       = zz_propagated
-            self.__xx_image_ff    = xx_image_ff
-            self.__zz_image_ff    = zz_image_ff
-            self.__xx_image_nf    = xx_image_nf
-            self.__zz_image_nf    = zz_image_nf
-            self.__ff_beam        = ff_beam
-            self.__nf_beam        = nf_beam
+            self.__energy               = energy
+            self.__wavelength           = wavelength
+            self.__image_plane_distance = image_plane_distance
+            self.__xp_screen            = xp_screen
+            self.__yp_screen            = yp_screen
+            self.__zp_screen            = zp_screen
+            self.__xx_screen            = xx_screen
+            self.__zz_screen            = zz_screen
+            self.__x_min                = x_min
+            self.__x_max                = x_max
+            self.__z_min                = z_min
+            self.__z_max                = z_max
+            self.__wIray_x              = wIray_x
+            self.__wIray_z              = wIray_z
+            self.__wIray_2D             = wIray_2D
+            self.__dx_rays              = dx_rays
+            self.__dz_rays              = dz_rays
+            self.__dif_x                = dif_x
+            self.__dif_z                = dif_z
+            self.__dif_xp               = dif_xp
+            self.__dif_zp               = dif_zp
+            self.__dif_xpzp             = dif_xpzp
+            self.__dx_convolution       = dx_convolution
+            self.__dz_convolution       = dz_convolution
+            self.__xx_propagated        = xx_propagated
+            self.__zz_propagated        = zz_propagated
+            self.__xx_image_ff          = xx_image_ff
+            self.__zz_image_ff          = zz_image_ff
+            self.__xx_image_nf          = xx_image_nf
+            self.__zz_image_nf          = zz_image_nf
+            self.__ff_beam              = ff_beam
+            self.__nf_beam              = nf_beam
 
             self.__calculation_parameters = {}
 
@@ -530,6 +524,11 @@ class AbstractHybridScreen():
         def wavelength(self) -> float: return self.__wavelength
         @wavelength.setter
         def wavelength(self, value: float): self.__wavelength = value
+
+        @property
+        def image_plane_distance(self) -> float: return self.__image_plane_distance
+        @image_plane_distance.setter
+        def image_plane_distance(self, value: float): self.__image_plane_distance = value
 
         @property
         def xx_screen(self) -> numpy.ndarray: return self.__xx_screen
@@ -700,7 +699,11 @@ class AbstractHybridScreen():
             input_parameters.listener.status_message("Starting HYBRID calculation")
             input_parameters.listener.set_progress_value(0)
 
-            calculation_parameters = self._manage_initial_screen_projection(input_parameters)
+            calculation_parameters = self.CalculationParameters()
+
+            self._set_image_distance_from_optical_element(input_parameters, calculation_parameters)
+
+            self._manage_initial_screen_projections(input_parameters, calculation_parameters)
 
             input_parameters.listener.status_message("Analysis of Input Beam and OE completed")
             input_parameters.listener.set_progress_value(10)
@@ -816,15 +819,15 @@ class AbstractHybridScreen():
     # -----------------------------------------------
     # CALCULATION OF ALL DATA ON THE HYBRID SCREEN
 
-    def _manage_initial_screen_projection(self, input_parameters: HybridInputParameters) -> CalculationParameters:
-        calculation_parameters = self._manage_common_initial_screen_projection_data(input_parameters)
-
+    def _manage_initial_screen_projections(self, input_parameters: HybridInputParameters, calculation_parameters: CalculationParameters):
+        self._manage_common_initial_screen_projection_data(input_parameters, calculation_parameters)
         self._manage_specific_initial_screen_projection_data(input_parameters, calculation_parameters)
 
-        return calculation_parameters
+    @abstractmethod
+    def _set_image_distance_from_optical_element(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters): raise NotImplementedError
 
     @abstractmethod
-    def _manage_common_initial_screen_projection_data(self, input_parameters: HybridInputParameters) -> CalculationParameters: raise NotImplementedError
+    def _manage_common_initial_screen_projection_data(self, input_parameters: HybridInputParameters, calculation_parameters: CalculationParameters): raise NotImplementedError
 
     def _manage_specific_initial_screen_projection_data(self, input_parameters: HybridInputParameters, calculation_parameters: CalculationParameters): pass
 
@@ -833,38 +836,20 @@ class AbstractHybridScreen():
 
     @abstractmethod
     def _initialize_hybrid_calculation(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters):
-        if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
-            # --------------------------------------------------
-            # propagated NF spatial distributions
-            #
-            if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2D, HybridDiffractionPlane.BOTH_2X1D]:
-                calculation_parameters.xx_propagated = copy.deepcopy(calculation_parameters.xx_screen) + \
-                                                       input_parameters.propagation_distance * numpy.tan(calculation_parameters.dx_ray)
+        if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2D, HybridDiffractionPlane.BOTH_2X1D]:
+            calculation_parameters.xx_propagated = copy.deepcopy(calculation_parameters.xx_screen) + \
+                                                   calculation_parameters.image_plane_distance * numpy.tan(calculation_parameters.dx_rays)
 
-            if input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2D, HybridDiffractionPlane.BOTH_2X1D]:
-                calculation_parameters.zz_propagated = copy.deepcopy(calculation_parameters.zz_screen) + \
-                                                       input_parameters.propagation_distance * numpy.tan(calculation_parameters.dz_ray)
+        if input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2D, HybridDiffractionPlane.BOTH_2X1D]:
+            calculation_parameters.zz_propagated = copy.deepcopy(calculation_parameters.zz_screen) + \
+                                                   calculation_parameters.image_plane_distance * numpy.tan(calculation_parameters.dz_rays)
 
         # --------------------------------------------------
         # Intensity profiles (histogram): I_ray(z) curve
         #
         histogram_s, bins_s, histogram_t, bins_t, histogram_2D = self._get_screen_plane_histograms(input_parameters, calculation_parameters)
 
-        if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in X
-            if (input_parameters.n_bins_x < 0): input_parameters.n_bins_x = 200
-
-            input_parameters.n_bins_x = min(input_parameters.n_bins_x, round(len(calculation_parameters.xx_screen) / 20))  # xshi change from 100 to 20
-            input_parameters.n_bins_x = max(input_parameters.n_bins_x, 10)
-
-            calculation_parameters.wIray_x = ScaledArray.initialize_from_range(histogram_s, bins_s[0], bins_s[-1])
-        elif input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in Z
-            if (input_parameters.n_bins_z < 0): input_parameters.n_bins_z = 200
-
-            input_parameters.n_bins_z = min(input_parameters.n_bins_z, round(len(calculation_parameters.zz_screen) / 20))  # xshi change from 100 to 20
-            input_parameters.n_bins_z = max(input_parameters.n_bins_z, 10)
-
-            calculation_parameters.wIray_z = ScaledArray.initialize_from_range(histogram_t, bins_t[0], bins_t[-1])
-        elif input_parameters.diffraction_plane == HybridDiffractionPlane.BOTH_2D:  # 2D
+        if input_parameters.diffraction_plane == HybridDiffractionPlane.BOTH_2D:  # 2D
             if (input_parameters.n_bins_x < 0): input_parameters.n_bins_x = 50
             if (input_parameters.n_bins_z < 0): input_parameters.n_bins_z = 50
 
@@ -876,6 +861,22 @@ class AbstractHybridScreen():
             calculation_parameters.wIray_x  = ScaledArray.initialize_from_range(histogram_s, bins_s[0], bins_s[-1])
             calculation_parameters.wIray_z  = ScaledArray.initialize_from_range(histogram_t, bins_t[0], bins_t[-1])
             calculation_parameters.wIray_2D = ScaledMatrix.initialize_from_range(histogram_2D, bins_s[0], bins_s[-1], bins_t[0], bins_t[-1])
+        else:
+            if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in X
+                if (input_parameters.n_bins_x < 0): input_parameters.n_bins_x = 200
+
+                input_parameters.n_bins_x = min(input_parameters.n_bins_x, round(len(calculation_parameters.xx_screen) / 20))  # xshi change from 100 to 20
+                input_parameters.n_bins_x = max(input_parameters.n_bins_x, 10)
+
+                calculation_parameters.wIray_x = ScaledArray.initialize_from_range(histogram_s, bins_s[0], bins_s[-1])
+
+            if input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in Z
+                if (input_parameters.n_bins_z < 0): input_parameters.n_bins_z = 200
+
+                input_parameters.n_bins_z = min(input_parameters.n_bins_z, round(len(calculation_parameters.zz_screen) / 20))  # xshi change from 100 to 20
+                input_parameters.n_bins_z = max(input_parameters.n_bins_z, 10)
+
+                calculation_parameters.wIray_z = ScaledArray.initialize_from_range(histogram_t, bins_t[0], bins_t[-1])
 
     # -----------------------------------------------
     # WAVEFRONT PROPAGATION
@@ -892,11 +893,10 @@ class AbstractHybridScreen():
                 self._propagate_wavefront_tangentially(input_parameters, calculation_parameters, geometry_analysis)
 
     def _propagate_wavefront_sagittally(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters, geometry_analysis : HybridGeometryAnalysis):
-        sagittal_phase_shift, scale_factor_ff, scale_factor_nf  = self._initialize_sagittal_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
+        sagittal_phase_shift, scale_factor  = self._initialize_sagittal_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
 
-        calculation_parameters.set("sagittal_phase_shift",     sagittal_phase_shift)
-        calculation_parameters.set("sagittal_scale_factor_ff", scale_factor_ff)
-        calculation_parameters.set("sagittal_scale_factor_nf", scale_factor_nf)
+        calculation_parameters.set("sagittal_phase_shift",  sagittal_phase_shift)
+        calculation_parameters.set("sagittal_scale_factor", scale_factor)
 
         # -------------------------------------------------
         # FAR FIELD PROPAGATION
@@ -907,23 +907,23 @@ class AbstractHybridScreen():
                                                                 calculation_parameters.wavelength)
             focallength_ff = self._adjust_sagittal_focal_length_ff(focallength_ff, input_parameters, calculation_parameters)
 
-            fft_size = int(scale_factor_ff * self._calculate_fft_size(calculation_parameters.x_min,
-                                                                     calculation_parameters.x_max,
-                                                                     calculation_parameters.wavelength,
-                                                                     focallength_ff,
-                                                                     input_parameters.fft_n_pts))
+            fft_size = int(scale_factor * self._calculate_fft_size(calculation_parameters.x_min,
+                                                                   calculation_parameters.x_max,
+                                                                   calculation_parameters.wavelength,
+                                                                   focallength_ff,
+                                                                   input_parameters.fft_n_pts))
 
-            if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]: input_parameters.listener.set_progress_value(27)
-            else:                                                                                                   input_parameters.listener.set_progress_value(30)
+            if input_parameters.propagation_type == HybridPropagationType.BOTH: input_parameters.listener.set_progress_value(27)
+            else:                                                               input_parameters.listener.set_progress_value(30)
 
             input_parameters.listener.status_message("Sagittal FF: creating plane wave, fft_size = " + str(fft_size))
 
             wavefront = GenericWavefront1D.initialize_wavefront_from_range(wavelength=calculation_parameters.wavelength,
                                                                            number_of_points=fft_size,
-                                                                           x_min=scale_factor_ff * calculation_parameters.x_min,
-                                                                           x_max=scale_factor_ff * calculation_parameters.x_max)
+                                                                           x_min=scale_factor * calculation_parameters.x_min,
+                                                                           x_max=scale_factor * calculation_parameters.x_max)
 
-            if scale_factor_ff == 1.0:
+            if scale_factor == 1.0:
                 try:
                     wavefront.set_plane_wave_from_complex_amplitude(numpy.sqrt(calculation_parameters.wIray_x.interpolate_values(wavefront.get_abscissas())))
                 except IndexError:
@@ -932,8 +932,8 @@ class AbstractHybridScreen():
             self._add_ideal_lens_phase_shift(wavefront, focallength_ff)
             self._add_specific_sagittal_phase_shift(wavefront, input_parameters, calculation_parameters)
 
-            if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]: input_parameters.listener.set_progress_value(35)
-            else:                                                                                                   input_parameters.listener.set_progress_value(50)
+            if input_parameters.propagation_type == HybridPropagationType.BOTH: input_parameters.listener.set_progress_value(35)
+            else:                                                               input_parameters.listener.set_progress_value(50)
             input_parameters.listener.status_message("Sagittal FF: begin propagation (distance = " + str(focallength_ff) + ")")
 
             propagated_wavefront = self._wave_optics_provider.do_propagation(dimension=1,
@@ -941,8 +941,8 @@ class AbstractHybridScreen():
                                                                              propagation_distance=focallength_ff,
                                                                              propagation_type=HybridPropagationType.FAR_FIELD)
 
-            if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]: input_parameters.listener.set_progress_value(50)
-            else:                                                                                                   input_parameters.listener.set_progress_value(70)
+            if input_parameters.propagation_type == HybridPropagationType.BOTH: input_parameters.listener.set_progress_value(50)
+            else:                                                               input_parameters.listener.set_progress_value(70)
             input_parameters.listener.status_message("Sagittal FF - dif_xp: begin calculation")
 
             image_size = min(abs(calculation_parameters.x_max), abs(calculation_parameters.x_min)) * 2
@@ -969,13 +969,13 @@ class AbstractHybridScreen():
         # -------------------------------------------------
         # NEAR FIELD PROPAGATION
         if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
-            focallength_nf = input_parameters.propagation_distance
+            focallength_nf = self._get_sagittal_near_field_effective_focal_length(input_parameters, calculation_parameters)
 
-            fft_size = int(scale_factor_nf * self._calculate_fft_size(calculation_parameters.x_min,
-                                                                     calculation_parameters.x_max,
-                                                                     calculation_parameters.wavelength,
-                                                                     numpy.abs(focallength_nf),
-                                                                     input_parameters.fft_n_pts))
+            fft_size = int(scale_factor * self._calculate_fft_size(calculation_parameters.x_min,
+                                                                   calculation_parameters.x_max,
+                                                                   calculation_parameters.wavelength,
+                                                                   calculation_parameters.image_plane_distance,
+                                                                   input_parameters.fft_n_pts))
 
             input_parameters.listener.status_message("Sagittal NF: creating plane wave, fft_size = " + str(fft_size))
             input_parameters.listener.set_progress_value(55)
@@ -983,10 +983,10 @@ class AbstractHybridScreen():
             wavefront = self._wave_optics_provider.initialize_wavefront_from_range(dimension=1,
                                                                                    wavelength=calculation_parameters.wavelength,
                                                                                    number_of_points=fft_size,
-                                                                                   x_min=scale_factor_nf * calculation_parameters.x_min,
-                                                                                   x_max=scale_factor_nf * calculation_parameters.x_max)
+                                                                                   x_min=scale_factor * calculation_parameters.x_min,
+                                                                                   x_max=scale_factor * calculation_parameters.x_max)
 
-            if scale_factor_nf == 1.0:
+            if scale_factor == 1.0:
                 try:
                     wavefront.set_plane_wave_from_complex_amplitude(numpy.sqrt(calculation_parameters.wIray_x.interpolate_values(wavefront.get_abscissas())))
                 except IndexError:
@@ -995,16 +995,18 @@ class AbstractHybridScreen():
             self._add_ideal_lens_phase_shift(wavefront, focallength_nf)
             self._add_specific_sagittal_phase_shift(wavefront, input_parameters, calculation_parameters)
 
-            input_parameters.listener.status_message("Sagittal NF: begin propagation (distance = " + str(input_parameters.propagation_distance) + ")")
+            input_parameters.listener.status_message("Sagittal NF: begin propagation (distance = " + str(focallength_nf) + ")")
             input_parameters.listener.set_progress_value(60)
+
+            propagation_distance = calculation_parameters.image_plane_distance
 
             propagated_wavefront = self._wave_optics_provider.do_propagation(dimension=1,
                                                                              wavefront=wavefront,
-                                                                             propagation_distance=focallength_nf,
+                                                                             propagation_distance=propagation_distance,
                                                                              propagation_type=HybridPropagationType.NEAR_FIELD)
 
-            image_size = (input_parameters.n_peaks * 2 * 0.88 * calculation_parameters.wavelength * numpy.abs(focallength_nf) / abs(calculation_parameters.x_max - calculation_parameters.x_min))
-            image_size = self._adjust_sagittal_image_size_nf(image_size, focallength_nf, input_parameters, calculation_parameters)
+            image_size = (input_parameters.n_peaks * 2 * 0.88 * calculation_parameters.wavelength * numpy.abs(propagation_distance) / abs(calculation_parameters.x_max - calculation_parameters.x_min))
+            image_size = self._adjust_sagittal_image_size_nf(image_size, propagation_distance, input_parameters, calculation_parameters)
 
             image_n_pts = int(round(image_size / propagated_wavefront.delta() / 2) * 2 + 1)
 
@@ -1021,13 +1023,11 @@ class AbstractHybridScreen():
 
             input_parameters.listener.set_progress_value(80)
 
-
     def _propagate_wavefront_tangentially(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters, geometry_analysis : HybridGeometryAnalysis):
-        tangential_phase_shift, scale_factor_ff, scale_factor_nf  = self._initialize_tangential_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
+        tangential_phase_shift, scale_factor  = self._initialize_tangential_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
 
-        calculation_parameters.set("tangential_phase_shift",     tangential_phase_shift)
-        calculation_parameters.set("tangential_scale_factor_ff", scale_factor_ff)
-        calculation_parameters.set("tangential_scale_factor_nf", scale_factor_nf)
+        calculation_parameters.set("tangential_phase_shift",  tangential_phase_shift)
+        calculation_parameters.set("tangential_scale_factor", scale_factor)
 
         # -------------------------------------------------
         # FAR FIELD PROPAGATION
@@ -1038,23 +1038,22 @@ class AbstractHybridScreen():
                                                                 calculation_parameters.wavelength)
             focallength_ff = self._adjust_tangential_focal_length_ff(focallength_ff, input_parameters, calculation_parameters)
             
-            fft_size = int(scale_factor_ff * self._calculate_fft_size(calculation_parameters.z_min,
-                                                                     calculation_parameters.z_max,
-                                                                     calculation_parameters.wavelength,
-                                                                     focallength_ff,
-                                                                     input_parameters.fft_n_pts))
+            fft_size = int(scale_factor * self._calculate_fft_size(calculation_parameters.z_min,
+                                                                   calculation_parameters.z_max,
+                                                                   calculation_parameters.wavelength,
+                                                                   focallength_ff,
+                                                                   input_parameters.fft_n_pts))
 
-            if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]: input_parameters.listener.set_progress_value(27)
-            else: input_parameters.listener.set_progress_value(30)
-
+            if input_parameters.propagation_type == HybridPropagationType.BOTH: input_parameters.listener.set_progress_value(27)
+            else:                                                               input_parameters.listener.set_progress_value(30)
             input_parameters.listener.status_message("FF: creating plane wave, fft_size = " + str(fft_size))
 
             wavefront = self._wave_optics_provider.initialize_wavefront_from_range(wavelength=calculation_parameters.wavelength,
                                                                                    number_of_points=fft_size,
-                                                                                   x_min=scale_factor_ff * calculation_parameters.z_min,
-                                                                                   x_max=scale_factor_ff * calculation_parameters.z_max)
+                                                                                   x_min=scale_factor * calculation_parameters.z_min,
+                                                                                   x_max=scale_factor * calculation_parameters.z_max)
 
-            if scale_factor_ff == 1.0:
+            if scale_factor == 1.0:
                 try:
                     wavefront.set_plane_wave_from_complex_amplitude(numpy.sqrt(calculation_parameters.wIray_z.interpolate_values(wavefront.get_abscissas())))
                 except IndexError:
@@ -1063,9 +1062,8 @@ class AbstractHybridScreen():
             self._add_ideal_lens_phase_shift(wavefront, focallength_ff)
             self._add_specific_tangential_phase_shift(wavefront, input_parameters, calculation_parameters)
 
-            if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]: input_parameters.listener.set_progress_value(35)
-            else:                                                                                                   input_parameters.listener.set_progress_value(50)
-
+            if input_parameters.propagation_type == HybridPropagationType.BOTH: input_parameters.listener.set_progress_value(35)
+            else:                                                               input_parameters.listener.set_progress_value(50)
             input_parameters.listener.status_message("Tangential FF: begin propagation (distance = " + str(focallength_ff) + ")")
 
             propagated_wavefront = self._wave_optics_provider.do_propagation(dimension=1,
@@ -1073,8 +1071,8 @@ class AbstractHybridScreen():
                                                                              propagation_distance=focallength_ff,
                                                                              propagation_type=HybridPropagationType.FAR_FIELD)
 
-            if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]: input_parameters.listener.set_progress_value(50)
-            else:                                                                                                   input_parameters.listener.set_progress_value(70)
+            if input_parameters.propagation_type == HybridPropagationType.BOTH: input_parameters.listener.set_progress_value(50)
+            else:                                                               input_parameters.listener.set_progress_value(70)
             input_parameters.listener.status_message("Tangential FF - dif_zp: begin calculation")
 
             image_size = min(abs(calculation_parameters.z_max), abs(calculation_parameters.z_min)) * 2
@@ -1099,13 +1097,13 @@ class AbstractHybridScreen():
         # -------------------------------------------------
         # NEAR FIELD PROPAGATION
         if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
-            focallength_nf = input_parameters.propagation_distance
+            focallength_nf = self._get_tangential_near_field_effective_focal_length(input_parameters, calculation_parameters)
 
-            fft_size = int(scale_factor_nf * self._calculate_fft_size(calculation_parameters.z_min,
-                                                                      calculation_parameters.z_max,
-                                                                      calculation_parameters.wavelength,
-                                                                      numpy.abs(focallength_nf),
-                                                                      input_parameters.fft_n_pts))
+            fft_size = int(scale_factor * self._calculate_fft_size(calculation_parameters.z_min,
+                                                                   calculation_parameters.z_max,
+                                                                   calculation_parameters.wavelength,
+                                                                   calculation_parameters.image_plane_distance,
+                                                                   input_parameters.fft_n_pts))
 
             input_parameters.listener.status_message("Tangential NF: creating plane wave, fft_size = " + str(fft_size))
             input_parameters.listener.set_progress_value(55)
@@ -1113,10 +1111,10 @@ class AbstractHybridScreen():
             wavefront = self._wave_optics_provider.initialize_wavefront_from_range(dimension=1,
                                                                                    wavelength=calculation_parameters.wavelength,
                                                                                    number_of_points=fft_size,
-                                                                                   x_min=scale_factor_nf * calculation_parameters.z_min,
-                                                                                   x_max=scale_factor_nf * calculation_parameters.z_max)
+                                                                                   x_min=scale_factor * calculation_parameters.z_min,
+                                                                                   x_max=scale_factor * calculation_parameters.z_max)
 
-            if scale_factor_nf == 1.0:
+            if scale_factor == 1.0:
                 try:
                     wavefront.set_plane_wave_from_complex_amplitude(numpy.sqrt(calculation_parameters.wIray_z.interpolate_values(wavefront.get_abscissas())))
                 except IndexError:
@@ -1125,7 +1123,7 @@ class AbstractHybridScreen():
             self._add_ideal_lens_phase_shift(wavefront, focallength_nf)
             self._add_specific_tangential_phase_shift(wavefront, input_parameters, calculation_parameters)
 
-            input_parameters.listener.status_message("Tangential NF: begin propagation (distance = " + str(input_parameters.propagation_distance) + ")")
+            input_parameters.listener.status_message("Tangential NF: begin propagation (distance = " + str(focallength_nf) + ")")
             input_parameters.listener.set_progress_value(60)
 
             propagated_wavefront = self._wave_optics_provider.do_propagation(dimension=1,
@@ -1153,17 +1151,29 @@ class AbstractHybridScreen():
 
     def _propagate_wavefront_2D(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters, geometry_analysis : HybridGeometryAnalysis): pass
 
+    def _get_sagittal_near_field_effective_focal_length(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters) -> float:
+        return self._get_focal_length_from_optical_element(input_parameters, calculation_parameters)
+
+    def _get_tangential_near_field_effective_focal_length(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters) -> float:
+        return self._get_focal_length_from_optical_element(input_parameters, calculation_parameters)
+
+    def _get_2D_near_field_effective_focal_length(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters) -> float:
+        return self._get_focal_length_from_optical_element(input_parameters, calculation_parameters)
+
+    @abstractmethod
+    def _get_focal_length_from_optical_element(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters) -> float: raise NotImplementedError
+
     @staticmethod
     def _add_ideal_lens_phase_shift(wavefront: GenericWavefront1D, focal_length: float):
         wavefront.add_phase_shift((-1.0) * wavefront.get_wavenumber() * (wavefront.get_abscissas() ** 2 / focal_length) / 2)
 
-    def _initialize_sagittal_phase_shift(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters, geometry_analysis : HybridGeometryAnalysis) -> Tuple[Union[ScaledArray, None], float, float]:   return None, 1.0, 1.0
+    def _initialize_sagittal_phase_shift(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters, geometry_analysis : HybridGeometryAnalysis) -> Tuple[Union[ScaledArray, None], float]:   return None, 1.0
     def _adjust_sagittal_focal_length_ff(self, focallength_ff: float, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters) -> float: return focallength_ff
     def _add_specific_sagittal_phase_shift(self, wavefront: GenericWavefront1D, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters): pass
     def _adjust_sagittal_image_size_ff(self, image_size: float, focallength_ff: float, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters) -> float: return image_size
     def _adjust_sagittal_image_size_nf(self, image_size: float, focallength_nf: float, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters) -> float: return image_size
 
-    def _initialize_tangential_phase_shift(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters, geometry_analysis : HybridGeometryAnalysis) -> Tuple[Union[ScaledArray, None], float, float]: return None, 1.0, 1.0
+    def _initialize_tangential_phase_shift(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters, geometry_analysis : HybridGeometryAnalysis) -> Tuple[Union[ScaledArray, None], float]: return None, 1.0
     def _adjust_tangential_focal_length_ff(self, focallength_ff: float, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters) -> float: return focallength_ff
     def _add_specific_tangential_phase_shift(self, wavefront: GenericWavefront1D, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters): pass
     def _adjust_tangential_image_size_ff(self, image_size: float, focallength_ff: float, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters) -> float: return image_size
@@ -1210,44 +1220,48 @@ class AbstractHybridScreen():
     # CONVOLUTION WAVEOPTICS + RAYS
 
     def _convolve_wavefront_with_rays(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters):
-        if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d calculation in x direction
-            if input_parameters.propagation_type in [HybridPropagationType.FAR_FIELD, HybridPropagationType.BOTH]:
-                s1d     = Sampler1D(calculation_parameters.dif_xp.get_values(), calculation_parameters.dif_xp.get_abscissas())
-                pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.xp_screen), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 1))
-                dx_conv = numpy.arctan(pos_dif) + calculation_parameters.dx_rays  # add the ray divergence kicks
-
-                calculation_parameters.dx_convolution = dx_conv
-                calculation_parameters.xx_image_ff    = calculation_parameters.xx_screen + input_parameters.propagation_distance * numpy.tan(dx_conv)  # ray tracing to the image plane
-            elif input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
-                s1d     = Sampler1D(calculation_parameters.dif_x.get_values(), calculation_parameters.dif_x.get_abscissas())
-                pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.xx_propagated), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 2))
-
-                calculation_parameters.xx_image_nf = pos_dif + calculation_parameters.xx_propagated
-        elif input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d calculation in z direction
-            if input_parameters.propagation_type in [HybridPropagationType.FAR_FIELD, HybridPropagationType.BOTH]:
-                s1d     = Sampler1D(calculation_parameters.dif_zp.get_values(), calculation_parameters.dif_zp.get_abscissas())
-                pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.xp_screen), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 1))
-                dz_conv =  numpy.arctan(pos_dif) + calculation_parameters.dz_rays  # add the ray divergence kicks
-
-                calculation_parameters.dz_convolution = dz_conv
-                calculation_parameters.zz_image_ff    = calculation_parameters.zz_screen + input_parameters.propagation_distance * numpy.tan(dz_conv)  # ray tracing to the image plane
-            elif input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
-                s1d     = Sampler1D(calculation_parameters.dif_z.get_values(), calculation_parameters.dif_z.get_abscissas())
-                pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.zz_propagated), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 2))
-
-                calculation_parameters.zz_image_nf = pos_dif + calculation_parameters.zz_propagated
-        elif input_parameters.diffraction_plane == HybridDiffractionPlane.BOTH_2D:  # 2D
+        if input_parameters.diffraction_plane == HybridDiffractionPlane.BOTH_2D:  # 2D
             s2d = Sampler2D(calculation_parameters.dif_xpzp.z_values,
                             calculation_parameters.dif_xpzp.x_coord,
                             calculation_parameters.dif_xpzp.y_coord)
             pos_dif_x, pos_dif_z = s2d.get_n_sampled_points(len(calculation_parameters.zp_screen), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 5))
-            dx_conv              = numpy.arctan(pos_dif_x) + calculation_parameters.dx_ray  # add the ray divergence kicks
-            dz_conv              = numpy.arctan(pos_dif_z) + calculation_parameters.dz_ray  # add the ray divergence kicks
+            dx_conv              = numpy.arctan(pos_dif_x) + calculation_parameters.dx_rays  # add the ray divergence kicks
+            dz_conv              = numpy.arctan(pos_dif_z) + calculation_parameters.dz_rays  # add the ray divergence kicks
 
             calculation_parameters.dx_convolution = dx_conv
             calculation_parameters.dz_convolution = dz_conv
-            calculation_parameters.xx_image_ff    = calculation_parameters.xx_screen + input_parameters.propagation_distance * numpy.tan(dx_conv)  # ray tracing to the image plane
-            calculation_parameters.zz_image_ff    = calculation_parameters.zz_screen + input_parameters.propagation_distance * numpy.tan(dz_conv)  # ray tracing to the image plane
+            calculation_parameters.xx_image_ff    = calculation_parameters.xx_screen + calculation_parameters.image_plane_distance * numpy.tan(dx_conv)  # ray tracing to the image plane
+            calculation_parameters.zz_image_ff    = calculation_parameters.zz_screen + calculation_parameters.image_plane_distance * numpy.tan(dz_conv)  # ray tracing to the image plane
+        else:
+            if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d calculation in x direction
+                if input_parameters.propagation_type in [HybridPropagationType.FAR_FIELD, HybridPropagationType.BOTH]:
+                    s1d     = Sampler1D(calculation_parameters.dif_xp.get_values(), calculation_parameters.dif_xp.get_abscissas())
+                    pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.xp_screen), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 1))
+                    dx_conv = numpy.arctan(pos_dif) + calculation_parameters.dx_rays  # add the ray divergence kicks
+
+                    calculation_parameters.dx_convolution = dx_conv
+                    calculation_parameters.xx_image_ff    = calculation_parameters.xx_screen + calculation_parameters.image_plane_distance * numpy.tan(dx_conv)  # ray tracing to the image plane
+
+                if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
+                    s1d     = Sampler1D(calculation_parameters.dif_x.get_values(), calculation_parameters.dif_x.get_abscissas())
+                    pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.xx_propagated), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 2))
+
+                    calculation_parameters.xx_image_nf = pos_dif + calculation_parameters.xx_propagated
+
+            if input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d calculation in z direction
+                if input_parameters.propagation_type in [HybridPropagationType.FAR_FIELD, HybridPropagationType.BOTH]:
+                    s1d     = Sampler1D(calculation_parameters.dif_zp.get_values(), calculation_parameters.dif_zp.get_abscissas())
+                    pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.xp_screen), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 1))
+                    dz_conv =  numpy.arctan(pos_dif) + calculation_parameters.dz_rays  # add the ray divergence kicks
+
+                    calculation_parameters.dz_convolution = dz_conv
+                    calculation_parameters.zz_image_ff    = calculation_parameters.zz_screen + calculation_parameters.image_plane_distance * numpy.tan(dz_conv)  # ray tracing to the image plane
+
+                if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
+                    s1d     = Sampler1D(calculation_parameters.dif_z.get_values(), calculation_parameters.dif_z.get_abscissas())
+                    pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.zz_propagated), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 2))
+
+                    calculation_parameters.zz_image_nf = pos_dif + calculation_parameters.zz_propagated
 
     # -----------------------------------------------
     # OUTPUT BEAM GENERATION
@@ -1291,6 +1305,17 @@ class AbstractSimpleApertureHybridScreen(AbstractHybridScreen):
     @classmethod
     def get_specific_calculation_type(cls): return HybridCalculationType.SIMPLE_APERTURE
 
+    def _get_sagittal_near_field_effective_focal_length(self, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters):
+        return (calculation_parameters.x_max-calculation_parameters.x_min)**2/calculation_parameters.wavelength/input_parameters.n_peaks
+
+    def _get_tangential_near_field_effective_focal_length(self, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters):
+        return (calculation_parameters.z_max-calculation_parameters.z_min)**2/calculation_parameters.wavelength/input_parameters.n_peaks
+
+    def _get_2D_near_field_effective_focal_length(self, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters):
+        return (max(numpy.abs(calculation_parameters.x_max-calculation_parameters.x_min),
+                    numpy.abs(calculation_parameters.z_max-calculation_parameters.z_min)))**2/calculation_parameters.wavelength/input_parameters.n_peaks
+
+
 class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
     def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
         super(AbstractMirrorOrGratingSizeHybridScreen, self).__init__(wave_optics_provider)
@@ -1332,7 +1357,7 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
                                          input_parameters: HybridInputParameters,
                                          calculation_parameters :  AbstractHybridScreen.CalculationParameters,
                                          geometry_analysis : HybridGeometryAnalysis) -> Tuple[Union[ScaledArray, None], float, float]:
-        sagittal_phase_shift, scale_factor_ff, scale_factor_nf = super(AbstractMirrorOrGratingSizeHybridScreen, self)._initialize_sagittal_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
+        sagittal_phase_shift, scale_factor = super(AbstractMirrorOrGratingSizeHybridScreen, self)._initialize_sagittal_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
 
         has_roll_displacement, rotation_angle = self._has_roll_displacement(input_parameters, calculation_parameters)
 
@@ -1342,13 +1367,13 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
             sagittal_phase_shift = ScaledArray.initialize_from_range(numpy.zeros(3), sag_min, sag_max)
             sagittal_phase_shift.set_values(sagittal_phase_shift.get_values() + sagittal_phase_shift.get_abscissas()*numpy.sin(-rotation_angle))
 
-        return sagittal_phase_shift, scale_factor_ff, scale_factor_nf
+        return sagittal_phase_shift, scale_factor
 
     def _initialize_tangential_phase_shift(self,
                                            input_parameters: HybridInputParameters,
                                            calculation_parameters :  AbstractHybridScreen.CalculationParameters,
-                                           geometry_analysis : HybridGeometryAnalysis) -> Tuple[Union[ScaledArray, None], float, float]:
-        tangential_phase_shift, scale_factor_ff, scale_factor_nf = super(AbstractMirrorOrGratingSizeHybridScreen, self)._initialize_tangential_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
+                                           geometry_analysis : HybridGeometryAnalysis) -> Tuple[Union[ScaledArray, None], float]:
+        tangential_phase_shift, scale_factor = super(AbstractMirrorOrGratingSizeHybridScreen, self)._initialize_tangential_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
 
         has_pitch_displacement, rotation_angle = self._has_pitch_displacement(input_parameters, calculation_parameters)
 
@@ -1358,18 +1383,18 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
             tangential_phase_shift = ScaledArray.initialize_from_range(numpy.zeros(3), tan_min, tan_max)
             tangential_phase_shift.set_values(tangential_phase_shift.get_values() + tangential_phase_shift.get_abscissas() * numpy.sin(-rotation_angle))
 
-        return tangential_phase_shift, scale_factor_ff, scale_factor_nf
+        return tangential_phase_shift, scale_factor
 
     def _adjust_sagittal_focal_length_ff(self, focallength_ff: float, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters) -> float:
         sagittal_phase_shift = calculation_parameters.get("sagittal_phase_shift")
         # TODO: PATCH to be found with a formula
-        return focallength_ff if sagittal_phase_shift is None else min(focallength_ff, input_parameters.propagation_distance * 4)
+        return focallength_ff if sagittal_phase_shift is None else min(focallength_ff, calculation_parameters.image_plane_distance * 4)
 
 
     def _adjust_tangential_focal_length_ff(self, focallength_ff: float, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters) -> float:
         tangential_phase_shift = calculation_parameters.get("tangential_phase_shift")
 
-        return focallength_ff if tangential_phase_shift is None else min(focallength_ff, input_parameters.propagation_distance * 4)
+        return focallength_ff if tangential_phase_shift is None else min(focallength_ff, calculation_parameters.image_plane_distance * 4)
 
     def _add_specific_sagittal_phase_shift(self, wavefront: GenericWavefront1D, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters):
         sagittal_phase_shift = calculation_parameters.get("sagittal_phase_shift")
@@ -1454,7 +1479,7 @@ class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSi
     def _is_geometry_analysis_enabled(cls): return False
 
     def _manage_specific_initial_screen_projection_data(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters):
-        calculation_parameters = super(_AbstractMirrorOrGratingSizeAndErrorHybridScreen, self)._manage_specific_initial_screen_projection_data(input_parameters, calculation_parameters)
+        super(_AbstractMirrorOrGratingSizeAndErrorHybridScreen, self)._manage_specific_initial_screen_projection_data(input_parameters, calculation_parameters)
 
         error_profile = self._get_error_profile(input_parameters, calculation_parameters)
 
@@ -1471,7 +1496,7 @@ class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSi
         if input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2X1D, HybridDiffractionPlane.BOTH_2D]:  # Z
             offset_x_index = self._get_sagittal_displacement_index(input_parameters, calculation_parameters)
 
-            w_mirror_lz = ScaledArray.initialize_from_steps(error_profile.z_values[int(len(calculation_parameters.w_mirr_2D_values.x_coord) / 2 - offset_x_index), :],
+            w_mirror_lz = ScaledArray.initialize_from_steps(error_profile.z_values[int(len(error_profile.x_coord) / 2 - offset_x_index), :],
                                                             error_profile.y_coord[0],
                                                             error_profile.y_coord[1] - error_profile.y_coord[0])
 
@@ -1487,7 +1512,7 @@ class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSi
     def _get_sagittal_displacement_index(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters): raise NotImplementedError
 
     def _initialize_sagittal_phase_shift(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters, geometry_analysis : HybridGeometryAnalysis) -> Tuple[Union[ScaledArray, None], float, float]:
-        _, scale_factor_ff, scale_factor_nf = super(AbstractMirrorOrGratingSizeHybridScreen, self)._initialize_sagittal_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
+        _, scale_factor = super(AbstractMirrorOrGratingSizeHybridScreen, self)._initialize_sagittal_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
 
         sagittal_phase_shift = calculation_parameters.get("sagittal_error_profile_projection")
 
@@ -1497,33 +1522,25 @@ class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSi
 
         rms_slope = AbstractHybridScreen._get_rms_slope_error_from_height(sagittal_phase_shift)
 
-        input_parameters.listener.status_message("Using RMS slope error = " + str(rms_slope))
+        input_parameters.listener.status_message("Using RMS slope error = " + str(rms_slope*1e6) + "\u03BCrad")
 
         average_incidence_angle, central_reflection_angle = self._get_optical_element_angles(input_parameters, calculation_parameters)
 
         if HybridGeometryAnalysis.BEAM_NOT_CUT_SAGITTALLY in geometry_analysis.get_analysis_result():
-            if input_parameters.propagation_type in [HybridPropagationType.FAR_FIELD, HybridPropagationType.BOTH]:
-                dp_image = numpy.std(calculation_parameters.xx_image_ff) / input_parameters.propagation_distance
-                dp_se = 2 * rms_slope * numpy.sin(average_incidence_angle)
-                dp_error = calculation_parameters.wavelength / 2 / (calculation_parameters.x_max - calculation_parameters.x_max)
+            dp_image = numpy.std(calculation_parameters.xx_propagated) / calculation_parameters.image_plane_distance
+            dp_se = 2 * rms_slope * numpy.sin(average_incidence_angle)
+            dp_error = calculation_parameters.wavelength / 2 / (calculation_parameters.x_max - calculation_parameters.x_min)
 
-                scale_factor_ff = max(1, 5 * min(dp_error / dp_image, dp_error / dp_se))
-
-            if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
-                dp_image = numpy.std(calculation_parameters.xx_propagated)/input_parameters.propagation_distance
-                dp_se = 2 * rms_slope * numpy.sin(average_incidence_angle)
-                dp_error = calculation_parameters.wavelength / 2 / (calculation_parameters.x_max - calculation_parameters.x_min)
-    
-                scale_factor_nf = max(1, 5*min(dp_error/dp_image, dp_error/dp_se))
+            scale_factor = max(1, 5 * min(dp_error / dp_image, dp_error / dp_se))
 
         calculation_parameters.set("sagittal_rms_slope", rms_slope)
         calculation_parameters.set("average_incidence_angle", average_incidence_angle)
         calculation_parameters.set("central_reflection_angle", central_reflection_angle)
 
-        return sagittal_phase_shift, scale_factor_ff, scale_factor_nf
+        return sagittal_phase_shift, scale_factor
 
-    def _initialize_tangential_phase_shift(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters, geometry_analysis : HybridGeometryAnalysis) -> Tuple[Union[ScaledArray, None], float, float]:
-        _, scale_factor_ff, scale_factor_nf = super(AbstractMirrorOrGratingSizeHybridScreen, self)._initialize_sagittal_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
+    def _initialize_tangential_phase_shift(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters, geometry_analysis : HybridGeometryAnalysis) -> Tuple[Union[ScaledArray, None], float]:
+        _, scale_factor = super(AbstractMirrorOrGratingSizeHybridScreen, self)._initialize_sagittal_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
 
         tangential_phase_shift = calculation_parameters.get("tangential_error_profile_projection")
 
@@ -1535,31 +1552,23 @@ class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSi
 
         input_parameters.listener.status_message("Using RMS slope error = " + str(rms_slope*1e6) + "\u03BCrad")
 
-        if HybridGeometryAnalysis.BEAM_NOT_CUT_SAGITTALLY in geometry_analysis.get_analysis_result():
-            if input_parameters.propagation_type in [HybridPropagationType.FAR_FIELD, HybridPropagationType.BOTH]:
-                dp_image = numpy.std(calculation_parameters.zz_image_ff) / input_parameters.propagation_distance
-                dp_se = 2 * rms_slope
-                dp_error = calculation_parameters.wavelength / 2 / (calculation_parameters.z_max - calculation_parameters.z_max)
+        if HybridGeometryAnalysis.BEAM_NOT_CUT_TANGENTIALLY in geometry_analysis.get_analysis_result():
+            dp_image = numpy.std(calculation_parameters.zz_propagated) / calculation_parameters.image_plane_distance
+            dp_se = 2 * rms_slope
+            dp_error = calculation_parameters.wavelength / 2 / (calculation_parameters.z_max - calculation_parameters.z_min)
 
-                scale_factor_ff = max(1, 5 * min(dp_error / dp_image, dp_error / dp_se))
-
-            if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
-                dp_image = numpy.std(calculation_parameters.zz_propagated) / input_parameters.propagation_distance
-                dp_se = 2 * rms_slope
-                dp_error = calculation_parameters.wavelength / 2 / (calculation_parameters.z_max - calculation_parameters.z_min)
-
-                scale_factor_nf = max(1, 5 * min(dp_error / dp_image, dp_error / dp_se))
+            scale_factor = max(1, 5 * min(dp_error / dp_image, dp_error / dp_se))
 
         calculation_parameters.set("tangential_rms_slope", rms_slope)
 
-        return tangential_phase_shift, scale_factor_ff, scale_factor_nf
+        return tangential_phase_shift, scale_factor
 
     def _adjust_tangential_image_size_nf(self, image_size: float, focallength_nf: float, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters) -> float:
-        rms_slope                = calculation_parameters.get("sagittal_rms_slope")
+        rms_slope                = calculation_parameters.get("tangential_rms_slope")
 
         image_size = max(image_size, 16 * rms_slope * numpy.abs(focallength_nf))
 
-        return super(AbstractGratingSizeAndErrorHybridScreen, self)._adjust_tangential_image_size_nf(image_size, focallength_nf, input_parameters, calculation_parameters)
+        return super(_AbstractMirrorOrGratingSizeAndErrorHybridScreen, self)._adjust_tangential_image_size_nf(image_size, focallength_nf, input_parameters, calculation_parameters)
 
 class AbstractMirrorSizeAndErrorHybridScreen(_AbstractMirrorOrGratingSizeAndErrorHybridScreen):
     def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
@@ -1604,7 +1613,7 @@ class AbstractGratingSizeAndErrorHybridScreen(_AbstractMirrorOrGratingSizeAndErr
     def _is_geometry_analysis_enabled(cls): return False
 
     def _manage_specific_initial_screen_projection_data(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters):
-        calculation_parameters = super(AbstractGratingSizeAndErrorHybridScreen, self)._manage_specific_initial_screen_projection_data(input_parameters, calculation_parameters)
+        super(AbstractGratingSizeAndErrorHybridScreen, self)._manage_specific_initial_screen_projection_data(input_parameters, calculation_parameters)
 
         reflection_angles = calculation_parameters.get("reflection_angles")
 
@@ -1699,7 +1708,8 @@ class AbstractCRLSizeAndErrorHybridScreen(AbstractCRLSizeHybridScreen):
     def _is_geometry_analysis_enabled(cls): return False
 
     def _manage_specific_initial_screen_projection_data(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters):
-        calculation_parameters = super(AbstractCRLSizeAndErrorHybridScreen, self)._manage_specific_initial_screen_projection_data(input_parameters, calculation_parameters)
+        super(AbstractCRLSizeAndErrorHybridScreen, self)._manage_specific_initial_screen_projection_data(input_parameters, calculation_parameters)
+
         calculation_parameters.set("error_profiles", self._get_error_profiles(input_parameters, calculation_parameters))
 
     @abstractmethod
