@@ -1773,7 +1773,7 @@ from srxraylib.util.threading import Singleton, synchronized_method
 class HybridScreenManager(object):
 
     def __init__(self):
-        self.__chains_hashmap         = {}
+        self.__chains_hashmap = {}
 
     @synchronized_method
     def add_hybrid_screen_class(self, hybrid_implementation, hybrid_screen_class: Type[AbstractHybridScreen]):
