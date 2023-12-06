@@ -1487,7 +1487,6 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
     @abstractmethod
     def _get_optical_element_spatial_limits(self, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters) -> Tuple[float, float, float, float]: raise NotImplementedError
 
-
 class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSizeHybridScreen):
     def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
         super(_AbstractMirrorOrGratingSizeAndErrorHybridScreen, self).__init__(wave_optics_provider)
