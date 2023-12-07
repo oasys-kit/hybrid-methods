@@ -1169,12 +1169,14 @@ class AbstractHybridScreen():
                                                  calculation_parameters.x_max,
                                                  calculation_parameters.wavelength,
                                                  focallength_ff,
-                                                 input_parameters.fft_n_pts))
+                                                 input_parameters.fft_n_pts,
+                                                 factor=20))
         fftsize_z = int(self._calculate_fft_size(calculation_parameters.z_min,
                                                  calculation_parameters.z_max,
                                                  calculation_parameters.wavelength,
                                                  focallength_ff,
-                                                 input_parameters.fft_n_pts))
+                                                 input_parameters.fft_n_pts,
+                                                 factor=20))
 
         input_parameters.listener.set_progress_value(30)
         input_parameters.listener.status_message("FF: creating plane wave, fftsize_x = " +  str(fftsize_x) + ", fftsize_z = " +  str(fftsize_z))
@@ -1673,17 +1675,17 @@ class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSi
 
         input_parameters.listener.status_message("Using RMS slope error = " + str(rms_slope*1e6) + "\u03BCrad")
 
-        average_incidence_angle, central_reflection_angle = self._get_optical_element_angles(input_parameters, calculation_parameters)
+        central_incidence_angle, central_reflection_angle = self._get_optical_element_angles(input_parameters, calculation_parameters)
 
         if HybridGeometryAnalysis.BEAM_NOT_CUT_SAGITTALLY in geometry_analysis.get_analysis_result():
             dp_image = numpy.std(calculation_parameters.xx_propagated) / calculation_parameters.image_plane_distance
-            dp_se = 2 * rms_slope * numpy.sin(average_incidence_angle)
+            dp_se = 2 * rms_slope * numpy.sin(central_incidence_angle)
             dp_error = calculation_parameters.wavelength / 2 / (calculation_parameters.x_max - calculation_parameters.x_min)
 
             scale_factor = max(1, 5 * min(dp_error / dp_image, dp_error / dp_se))
 
         calculation_parameters.set("sagittal_rms_slope", rms_slope)
-        calculation_parameters.set("average_incidence_angle", average_incidence_angle)
+        calculation_parameters.set("central_incidence_angle", central_incidence_angle)
         calculation_parameters.set("central_reflection_angle", central_reflection_angle)
 
         return sagittal_phase_shift, scale_factor
@@ -1745,11 +1747,11 @@ class AbstractMirrorSizeAndErrorHybridScreen(_AbstractMirrorOrGratingSizeAndErro
     def get_specific_calculation_type(cls): return HybridCalculationType.MIRROR_SIZE_AND_ERROR_PROFILE
 
     def _adjust_sagittal_focal_length_ff(self, focallength_ff: float, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters) -> float:
-        rms_slope              = calculation_parameters.get("sagittal_rms_slope")
-        central_incident_angle = calculation_parameters.get("central_incident_angle")
+        rms_slope               = calculation_parameters.get("sagittal_rms_slope")
+        central_incidence_angle = calculation_parameters.get("central_incidence_angle")
 
-        if not (rms_slope == 0.0 or central_incident_angle == 0.0):
-            focallength_ff = min(focallength_ff, (calculation_parameters.x_max - calculation_parameters.x_min) / 16 / rms_slope / numpy.sin(central_incident_angle))  # xshi changed
+        if not (rms_slope == 0.0 or central_incidence_angle == 0.0):
+            focallength_ff = min(focallength_ff, (calculation_parameters.x_max - calculation_parameters.x_min) / 16 / rms_slope / numpy.sin(central_incidence_angle))  # xshi changed
 
         return focallength_ff
 
@@ -1765,11 +1767,11 @@ class AbstractMirrorSizeAndErrorHybridScreen(_AbstractMirrorOrGratingSizeAndErro
         return self._adjust_tangential_focal_length_ff(focallength_ff, input_parameters, calculation_parameters)
 
     def _adjust_sagittal_image_size_nf(self, image_size: float, focallength_nf: float, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters) -> float:
-        rms_slope              = calculation_parameters.get("sagittal_rms_slope")
-        central_incident_angle = calculation_parameters.get("central_incident_angle")
+        rms_slope               = calculation_parameters.get("sagittal_rms_slope")
+        central_incidence_angle = calculation_parameters.get("central_incidence_angle")
 
         image_size = max(image_size,
-                         16 * rms_slope * numpy.abs(focallength_nf) * numpy.sin(central_incident_angle))
+                         16 * rms_slope * numpy.abs(focallength_nf) * numpy.sin(central_incidence_angle))
 
         return super(AbstractMirrorSizeAndErrorHybridScreen, self)._adjust_sagittal_image_size_nf(image_size, focallength_nf, input_parameters, calculation_parameters)
     
@@ -1792,11 +1794,11 @@ class AbstractGratingSizeAndErrorHybridScreen(_AbstractMirrorOrGratingSizeAndErr
 
     def _adjust_sagittal_focal_length_ff(self, focallength_ff: float, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters) -> float:
         rms_slope                = calculation_parameters.get("sagittal_rms_slope")
-        central_incident_angle   = calculation_parameters.get("central_incident_angle")
+        central_incidence_angle  = calculation_parameters.get("central_incidence_angle")
         central_reflection_angle = calculation_parameters.get("central_reflection_angle")
 
-        if not (rms_slope == 0.0 or central_incident_angle == 0.0):
-            focallength_ff =  min(focallength_ff, (calculation_parameters.x_max - calculation_parameters.x_min) / 8 / rms_slope / (numpy.sin(central_incident_angle) + numpy.sin(central_reflection_angle)))
+        if not (rms_slope == 0.0 or central_incidence_angle == 0.0):
+            focallength_ff =  min(focallength_ff, (calculation_parameters.x_max - calculation_parameters.x_min) / 8 / rms_slope / (numpy.sin(central_incidence_angle) + numpy.sin(central_reflection_angle)))
 
         return focallength_ff
 
@@ -1846,11 +1848,11 @@ class AbstractGratingSizeAndErrorHybridScreen(_AbstractMirrorOrGratingSizeAndErr
 
     def _adjust_sagittal_image_size_nf(self, image_size: float, focallength_nf: float, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters) -> float:
         rms_slope                = calculation_parameters.get("sagittal_rms_slope")
-        central_incident_angle   = calculation_parameters.get("central_incident_angle")
+        central_incidence_angle  = calculation_parameters.get("central_incidence_angle")
         central_reflection_angle = calculation_parameters.get("central_reflection_angle")
 
         image_size = max(image_size,
-                         8 * rms_slope * numpy.abs(focallength_nf) * (numpy.sin(central_incident_angle) + numpy.sin(central_reflection_angle)))
+                         8 * rms_slope * numpy.abs(focallength_nf) * (numpy.sin(central_incidence_angle) + numpy.sin(central_reflection_angle)))
 
         return super(AbstractGratingSizeAndErrorHybridScreen, self)._adjust_sagittal_image_size_nf(image_size, focallength_nf, input_parameters, calculation_parameters)
 
