@@ -64,11 +64,12 @@ from syned.beamline.beamline_element import BeamlineElement
 from syned.beamline.element_coordinates import ElementCoordinates
 
 wofry_propagation_manager = PropagationManager.Instance()
-wofry_propagation_manager.add_propagator(Fraunhofer1D())
-wofry_propagation_manager.add_propagator(Fresnel1D())
-wofry_propagation_manager.add_propagator(Fraunhofer2D())
-wofry_propagation_manager.add_propagator(Fresnel2D())
-wofry_propagation_manager.set_initialized()
+try:
+    wofry_propagation_manager.add_propagator(Fresnel1D())
+    wofry_propagation_manager.add_propagator(Fresnel2D())
+    wofry_propagation_manager.set_initialized()
+except ValueError as e:
+    print(e)
 
 from srxraylib.util.data_structures import ScaledArray, ScaledMatrix
 from srxraylib.util.inverse_method_sampler import Sampler2D, Sampler1D

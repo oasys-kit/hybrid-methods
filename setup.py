@@ -9,7 +9,7 @@ except AttributeError:
 
 NAME = 'oasys-hybrid-methods'
 
-VERSION = '1.0.1'
+VERSION = '1.0.2'
 ISRELEASED = True
 
 DESCRIPTION = 'Hybrid Methods, combining raytracing with wave optics'
