@@ -55,7 +55,6 @@ INSTALL_REQUIRES = (
     'srxraylib>=1.0.45',
     'syned',
     'wofry',
-    'wofrysrw',
     'wofryimpl',
 )
 
