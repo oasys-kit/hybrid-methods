@@ -74,6 +74,12 @@ except ValueError as e:
 from srxraylib.util.data_structures import ScaledArray, ScaledMatrix
 from srxraylib.util.inverse_method_sampler import Sampler2D, Sampler1D
 
+# debug
+
+debug_mode = True
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+
 # -------------------------------------------------------------
 # CONSTANTS
 # -------------------------------------------------------------
@@ -170,7 +176,8 @@ class _DefaultWaveOpticsProvider(HybridWaveOpticsProvider):
             elif dimension == 2: handler_name = Fresnel2D.HANDLER_NAME
 
         return self.__propagation_manager.do_propagation(propagation_parameters=PropagationParameters(wavefront=wavefront,
-                                                                                                      propagation_elements=propagation_elements),
+                                                                                                      propagation_elements=propagation_elements,
+                                                                                                      shift_half_pixel=True),
                                                          handler_name=handler_name)
 
 # -------------------------------------------------------------
@@ -587,9 +594,9 @@ class AbstractHybridScreen():
         def wIray_z(self, value: ScaledArray): self.__wIray_z = value
 
         @property
-        def wIray_2D(self) -> ScaledArray: return self.__wIray_2D
+        def wIray_2D(self) -> ScaledMatrix: return self.__wIray_2D
         @wIray_2D.setter
-        def wIray_2D(self, value: ScaledArray): self.__wIray_2D = value
+        def wIray_2D(self, value: ScaledMatrix): self.__wIray_2D = value
 
         @property
         def dx_rays(self) -> numpy.ndarray: return self.__dx_rays
@@ -848,35 +855,41 @@ class AbstractHybridScreen():
         # --------------------------------------------------
         # Intensity profiles (histogram): I_ray(z) curve
         #
-        histogram_s, bins_s, histogram_t, bins_t, histogram_2D = self._get_screen_plane_histograms(input_parameters, calculation_parameters)
 
         if input_parameters.diffraction_plane == HybridDiffractionPlane.BOTH_2D:  # 2D
             if (input_parameters.n_bins_x < 0): input_parameters.n_bins_x = 50
             if (input_parameters.n_bins_z < 0): input_parameters.n_bins_z = 50
-
             input_parameters.n_bins_x = min(input_parameters.n_bins_x, round(numpy.sqrt(len(calculation_parameters.xx_screen) / 10)))
             input_parameters.n_bins_z = min(input_parameters.n_bins_z, round(numpy.sqrt(len(calculation_parameters.zz_screen) / 10)))
             input_parameters.n_bins_x = max(input_parameters.n_bins_x, 10)
             input_parameters.n_bins_z = max(input_parameters.n_bins_z, 10)
-
-            calculation_parameters.wIray_x  = ScaledArray.initialize_from_range(histogram_s, bins_s[0], bins_s[-1])
-            calculation_parameters.wIray_z  = ScaledArray.initialize_from_range(histogram_t, bins_t[0], bins_t[-1])
-            calculation_parameters.wIray_2D = ScaledMatrix.initialize_from_range(histogram_2D, bins_s[0], bins_s[-1], bins_t[0], bins_t[-1])
         else:
             if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in X
                 if (input_parameters.n_bins_x < 0): input_parameters.n_bins_x = 200
-
                 input_parameters.n_bins_x = min(input_parameters.n_bins_x, round(len(calculation_parameters.xx_screen) / 20))  # xshi change from 100 to 20
                 input_parameters.n_bins_x = max(input_parameters.n_bins_x, 10)
-
-                calculation_parameters.wIray_x = ScaledArray.initialize_from_range(histogram_s, bins_s[0], bins_s[-1])
-
             if input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in Z
                 if (input_parameters.n_bins_z < 0): input_parameters.n_bins_z = 200
-
                 input_parameters.n_bins_z = min(input_parameters.n_bins_z, round(len(calculation_parameters.zz_screen) / 20))  # xshi change from 100 to 20
                 input_parameters.n_bins_z = max(input_parameters.n_bins_z, 10)
 
+        histogram_s, bins_s, histogram_t, bins_t, histogram_2D = self._get_screen_plane_histograms(input_parameters, calculation_parameters)
+
+        if input_parameters.diffraction_plane == HybridDiffractionPlane.BOTH_2D:  # 2D
+            calculation_parameters.wIray_x  = ScaledArray.initialize_from_range(histogram_s, bins_s[0], bins_s[-1])
+            calculation_parameters.wIray_z  = ScaledArray.initialize_from_range(histogram_t, bins_t[0], bins_t[-1])
+            calculation_parameters.wIray_2D = ScaledMatrix.initialize_from_range(histogram_2D, bins_s[0], bins_s[-1], bins_t[0], bins_t[-1])
+
+            #plt.imshow(calculation_parameters.wIray_2D.get_z_values(), extent=(bins_s[0], bins_s[-1], bins_t[0], bins_t[-1]), interpolation='nearest', cmap=cm.copper)
+            #plt.xlabel(f"size {calculation_parameters.wIray_2D.get_z_values().shape[0]}")
+            #plt.ylabel(f"size {calculation_parameters.wIray_2D.get_z_values().shape[1]}")
+            #plt.show()
+
+        else:
+            if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in X
+                calculation_parameters.wIray_x = ScaledArray.initialize_from_range(histogram_s, bins_s[0], bins_s[-1])
+
+            if input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in Z
                 calculation_parameters.wIray_z = ScaledArray.initialize_from_range(histogram_t, bins_t[0], bins_t[-1])
 
     # -----------------------------------------------
@@ -1193,13 +1206,19 @@ class AbstractHybridScreen():
         try:
             x_coord           = wavefront.get_coordinate_x()
             z_coord           = wavefront.get_coordinate_y()
-            shape             = wavefront.size()
             complex_amplitude = wavefront.get_complex_amplitude()
 
-            for i in range(0, shape[0]):
-                for j in range(0, shape[1]):
+            for i in range(0, x_coord.shape[0]):
+                for j in range(0, z_coord.shape[0]):
                     interpolated = calculation_parameters.wIray_2D.interpolate_value(x_coord[i], z_coord[j])
-                    complex_amplitude[i, j] = numpy.sqrt(0.0 if interpolated < 0 else interpolated)
+                    complex_amplitude[i, j] = numpy.sqrt(interpolated if interpolated > 0.0 else 0.0)
+
+            #intensity = wavefront.get_intensity()
+            #plt.imshow(intensity, extent=(x_coord[0], x_coord[-1], z_coord[0], z_coord[-1]), interpolation='nearest', cmap=cm.copper)
+            #plt.xlabel(f"size {intensity.shape[0]}")
+            #plt.ylabel(f"size {intensity.shape[1]}")
+            #plt.show()
+
         except IndexError:
             raise Exception("Unexpected Error during interpolation: try reduce Number of bins for I(Tangential) histogram")
 
@@ -1213,6 +1232,14 @@ class AbstractHybridScreen():
                                                                          wavefront=wavefront,
                                                                          propagation_distance=focallength_ff,
                                                                          propagation_type=HybridPropagationType.FAR_FIELD)
+
+        intensity = propagated_wavefront.get_intensity()
+        x_coord = propagated_wavefront.get_coordinate_x()
+        z_coord = propagated_wavefront.get_coordinate_y()
+        plt.imshow(intensity, extent=(x_coord[0], x_coord[-1], z_coord[0], z_coord[-1]), interpolation='nearest', cmap=cm.copper)
+        plt.xlabel(f"size {intensity.shape[0]}")
+        plt.ylabel(f"size {intensity.shape[1]}")
+        plt.show()
 
         input_parameters.listener.set_progress_value(70)
         input_parameters.listener.status_message("2D FF - dif_xpzp: begin calculation")
