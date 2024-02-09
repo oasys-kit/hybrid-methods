@@ -1233,13 +1233,13 @@ class AbstractHybridScreen():
                                                                          propagation_distance=focallength_ff,
                                                                          propagation_type=HybridPropagationType.FAR_FIELD)
 
-        intensity = propagated_wavefront.get_intensity()
-        x_coord = propagated_wavefront.get_coordinate_x()
-        z_coord = propagated_wavefront.get_coordinate_y()
-        plt.imshow(intensity, extent=(x_coord[0], x_coord[-1], z_coord[0], z_coord[-1]), interpolation='nearest', cmap=cm.copper)
-        plt.xlabel(f"size {intensity.shape[0]}")
-        plt.ylabel(f"size {intensity.shape[1]}")
-        plt.show()
+        #intensity = propagated_wavefront.get_intensity()
+        #x_coord = propagated_wavefront.get_coordinate_x()
+        #z_coord = propagated_wavefront.get_coordinate_y()
+        #plt.imshow(intensity, extent=(x_coord[0], x_coord[-1], z_coord[0], z_coord[-1]), interpolation='nearest', cmap=cm.copper)
+        #plt.xlabel(f"size {intensity.shape[0]}")
+        #plt.ylabel(f"size {intensity.shape[1]}")
+        #plt.show()
 
         input_parameters.listener.set_progress_value(70)
         input_parameters.listener.status_message("2D FF - dif_xpzp: begin calculation")
