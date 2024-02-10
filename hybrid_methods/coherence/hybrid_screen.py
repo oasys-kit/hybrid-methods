@@ -79,6 +79,12 @@ from srxraylib.util.inverse_method_sampler import Sampler2D, Sampler1D
 debug_mode = True
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from matplotlib import cm
+from matplotlib.figure import Figure
+try:
+    from mpl_toolkits.mplot3d import Axes3D  # necessario per caricare i plot 3D
+except:
+    pass
 
 # -------------------------------------------------------------
 # CONSTANTS
@@ -481,6 +487,8 @@ class AbstractHybridScreen():
                      dz_convolution: numpy.ndarray=None,
                      xx_propagated: numpy.ndarray=None,
                      zz_propagated: numpy.ndarray=None,
+                     xx_focal: numpy.ndarray=None,
+                     zz_focal: numpy.ndarray=None,
                      xx_image_ff: numpy.ndarray=None,
                      zz_image_ff: numpy.ndarray=None,
                      xx_image_nf: numpy.ndarray=None,
@@ -514,6 +522,8 @@ class AbstractHybridScreen():
             self.__dz_convolution       = dz_convolution
             self.__xx_propagated        = xx_propagated
             self.__zz_propagated        = zz_propagated
+            self.__xx_focal             = xx_focal
+            self.__zz_focal             = zz_focal
             self.__xx_image_ff          = xx_image_ff
             self.__zz_image_ff          = zz_image_ff
             self.__xx_image_nf          = xx_image_nf
@@ -652,6 +662,16 @@ class AbstractHybridScreen():
         def zz_propagated(self) -> numpy.ndarray: return self.__zz_propagated
         @zz_propagated.setter
         def zz_propagated(self, value: numpy.ndarray): self.__zz_propagated = value
+
+        @property
+        def xx_focal(self) -> numpy.ndarray: return self.__xx_focal
+        @xx_focal.setter
+        def xx_focal(self, value: numpy.ndarray): self.__xx_focal = value
+
+        @property
+        def zz_focal(self) -> numpy.ndarray: return self.__zz_focal
+        @zz_focal.setter
+        def zz_focal(self, value: numpy.ndarray): self.__zz_focal = value
 
         @property
         def xx_image_ff(self) -> numpy.ndarray: return self.__xx_image_ff
@@ -847,16 +867,22 @@ class AbstractHybridScreen():
         if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2D, HybridDiffractionPlane.BOTH_2X1D]:
             calculation_parameters.xx_propagated = copy.deepcopy(calculation_parameters.xx_screen) + \
                                                    calculation_parameters.image_plane_distance * numpy.tan(calculation_parameters.dx_rays)
+            if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
+                calculation_parameters.xx_focal = copy.deepcopy(calculation_parameters.xx_screen) + \
+                                                  self._get_focal_length_from_optical_element(input_parameters, calculation_parameters) * numpy.tan(calculation_parameters.dx_rays)
 
         if input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2D, HybridDiffractionPlane.BOTH_2X1D]:
             calculation_parameters.zz_propagated = copy.deepcopy(calculation_parameters.zz_screen) + \
                                                    calculation_parameters.image_plane_distance * numpy.tan(calculation_parameters.dz_rays)
+            if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
+                calculation_parameters.zz_focal = copy.deepcopy(calculation_parameters.zz_screen) + \
+                                                       self._get_focal_length_from_optical_element(input_parameters, calculation_parameters) * numpy.tan(calculation_parameters.dz_rays)
 
         # --------------------------------------------------
         # Intensity profiles (histogram): I_ray(z) curve
         #
 
-        if input_parameters.diffraction_plane == HybridDiffractionPlane.BOTH_2D:  # 2D
+        if input_parameters.diffraction_plane == HybridDiffractionPlane.BOTH_2D: # 2D
             if (input_parameters.n_bins_x < 0): input_parameters.n_bins_x = 50
             if (input_parameters.n_bins_z < 0): input_parameters.n_bins_z = 50
             input_parameters.n_bins_x = min(input_parameters.n_bins_x, round(numpy.sqrt(len(calculation_parameters.xx_screen) / 10)))
@@ -879,12 +905,6 @@ class AbstractHybridScreen():
             calculation_parameters.wIray_x  = ScaledArray.initialize_from_range(histogram_s, bins_s[0], bins_s[-1])
             calculation_parameters.wIray_z  = ScaledArray.initialize_from_range(histogram_t, bins_t[0], bins_t[-1])
             calculation_parameters.wIray_2D = ScaledMatrix.initialize_from_range(histogram_2D, bins_s[0], bins_s[-1], bins_t[0], bins_t[-1])
-
-            #plt.imshow(calculation_parameters.wIray_2D.get_z_values(), extent=(bins_s[0], bins_s[-1], bins_t[0], bins_t[-1]), interpolation='nearest', cmap=cm.copper)
-            #plt.xlabel(f"size {calculation_parameters.wIray_2D.get_z_values().shape[0]}")
-            #plt.ylabel(f"size {calculation_parameters.wIray_2D.get_z_values().shape[1]}")
-            #plt.show()
-
         else:
             if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d in X
                 calculation_parameters.wIray_x = ScaledArray.initialize_from_range(histogram_s, bins_s[0], bins_s[-1])
@@ -1139,12 +1159,12 @@ class AbstractHybridScreen():
             self._add_ideal_lens_phase_shift_1D(wavefront, focallength_nf)
             self._add_specific_tangential_phase_shift(wavefront, input_parameters, calculation_parameters)
 
-            input_parameters.listener.status_message("Tangential NF: begin propagation (distance = " + str(focallength_nf) + ")")
+            input_parameters.listener.status_message("Tangential NF: begin propagation (distance = " + str(calculation_parameters.image_plane_distance) + ")")
             input_parameters.listener.set_progress_value(60)
 
             propagated_wavefront = self._wave_optics_provider.do_propagation(dimension=1,
                                                                              wavefront=wavefront,
-                                                                             propagation_distance=focallength_nf,
+                                                                             propagation_distance=calculation_parameters.image_plane_distance,
                                                                              propagation_type=HybridPropagationType.NEAR_FIELD)
 
             image_size = (input_parameters.n_peaks * 2 * 0.88 * calculation_parameters.wavelength * numpy.abs(focallength_nf) / abs(calculation_parameters.z_max - calculation_parameters.z_min))
@@ -1383,9 +1403,9 @@ class AbstractHybridScreen():
 
                 if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
                     s1d     = Sampler1D(calculation_parameters.dif_x.get_values(), calculation_parameters.dif_x.get_abscissas())
-                    pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.xx_propagated), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 2))
+                    pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.xx_focal), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 2))
 
-                    calculation_parameters.xx_image_nf = pos_dif + calculation_parameters.xx_propagated
+                    calculation_parameters.xx_image_nf = pos_dif + calculation_parameters.xx_focal
 
             if input_parameters.diffraction_plane in [HybridDiffractionPlane.TANGENTIAL, HybridDiffractionPlane.BOTH_2X1D]:  # 1d calculation in z direction
                 if input_parameters.propagation_type in [HybridPropagationType.FAR_FIELD, HybridPropagationType.BOTH]:
@@ -1398,9 +1418,9 @@ class AbstractHybridScreen():
 
                 if input_parameters.propagation_type in [HybridPropagationType.NEAR_FIELD, HybridPropagationType.BOTH]:
                     s1d     = Sampler1D(calculation_parameters.dif_z.get_values(), calculation_parameters.dif_z.get_abscissas())
-                    pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.zz_propagated), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 2))
+                    pos_dif = s1d.get_n_sampled_points(len(calculation_parameters.zz_focal), seed=None if input_parameters.random_seed is None else (input_parameters.random_seed + 2))
 
-                    calculation_parameters.zz_image_nf = pos_dif + calculation_parameters.zz_propagated
+                    calculation_parameters.zz_image_nf = pos_dif + calculation_parameters.zz_focal
 
     # -----------------------------------------------
     # OUTPUT BEAM GENERATION
@@ -1582,19 +1602,20 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
         incidence_angle_function_z = calculation_parameters.get("incidence_angle_function_z"),
         footprint_function_z       = calculation_parameters.get("footprint_function_z"),
 
-        phase_shifts = numpy.zeros(wavefront.size())
+        if not total_phase_shift is None:
+            phase_shifts = numpy.zeros(wavefront.size())
 
-        for index in range(0, phase_shifts.shape[0]):
-            total_phase_shift_z = ScaledArray.initialize_from_steps(total_phase_shift.z_values[index, :],
-                                                                    total_phase_shift.y_coord[0],
-                                                                    total_phase_shift.y_coord[1] - total_phase_shift.y_coord[0])
+            for index in range(0, phase_shifts.shape[0]):
+                total_phase_shift_z = ScaledArray.initialize_from_steps(total_phase_shift.z_values[index, :],
+                                                                        total_phase_shift.y_coord[0],
+                                                                        total_phase_shift.y_coord[1] - total_phase_shift.y_coord[0])
 
-            phase_shifts[index, :] = self._get_reflector_phase_shift(wavefront.get_coordinate_y(),
-                                                                     calculation_parameters.wavelength,
-                                                                     incidence_angle_function_z,
-                                                                     footprint_function_z,
-                                                                     total_phase_shift_z)
-        wavefront.add_phase_shifts(phase_shifts)
+                phase_shifts[index, :] = self._get_reflector_phase_shift(wavefront.get_coordinate_y(),
+                                                                         calculation_parameters.wavelength,
+                                                                         incidence_angle_function_z,
+                                                                         footprint_function_z,
+                                                                         total_phase_shift_z)
+            wavefront.add_phase_shifts(phase_shifts)
 
     def _adjust_sagittal_image_size_ff(self, image_size: float, focallength_ff: float, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters) -> float:
         return self.__adjust_sagittal_image_size(image_size, focallength_ff, input_parameters, calculation_parameters)
