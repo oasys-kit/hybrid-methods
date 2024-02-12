@@ -1486,6 +1486,9 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
         xx_mirr, yy_mirr                    = self._get_footprint_spatial_coordinates(input_parameters, calculation_parameters)
         incidence_angles, reflection_angles = self._get_rays_angles(input_parameters, calculation_parameters) # in radians
 
+        print(numpy.min(1000*(incidence_angles)),  numpy.average(1000*(incidence_angles)),  numpy.max(1000*(incidence_angles)))
+        print(numpy.min(1000*(reflection_angles)), numpy.average(1000*(reflection_angles)), numpy.max(1000*(reflection_angles)))
+
         calculation_parameters.set("incidence_angles",  incidence_angles)
         calculation_parameters.set("reflection_angles", reflection_angles)
 
