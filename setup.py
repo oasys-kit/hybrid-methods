@@ -7,9 +7,9 @@ try:
 except AttributeError:
     from setuptools import find_packages, setup
 
-NAME = 'oasys-hybrid-methods'
+NAME = 'shadow-hybrid-methods'
 
-VERSION = '1.0.6'
+VERSION = '1.0.0'
 ISRELEASED = True
 
 DESCRIPTION = 'Hybrid Methods, combining raytracing with wave optics'
