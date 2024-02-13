@@ -9,7 +9,7 @@ except AttributeError:
 
 NAME = 'shadow-hybrid-methods'
 
-VERSION = '1.0.0'
+VERSION = '1.0.2'
 ISRELEASED = True
 
 DESCRIPTION = 'Hybrid Methods, combining raytracing with wave optics'
@@ -55,7 +55,7 @@ INSTALL_REQUIRES = (
     'srxraylib>=1.0.45',
     'syned',
     'wofry',
-    'wofryimpl',
+    'wofryimpl>=1.0.26',
 )
 
 SETUP_REQUIRES = (
