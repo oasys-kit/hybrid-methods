@@ -74,17 +74,6 @@ except ValueError as e:
 from srxraylib.util.data_structures import ScaledArray, ScaledMatrix
 from srxraylib.util.inverse_method_sampler import Sampler2D, Sampler1D
 
-# debug
-
-debug_mode = True
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-from matplotlib import cm
-from matplotlib.figure import Figure
-try:
-    from mpl_toolkits.mplot3d import Axes3D  # necessario per caricare i plot 3D
-except:
-    pass
 
 # -------------------------------------------------------------
 # CONSTANTS
@@ -244,6 +233,13 @@ class HybridListener():
     def warning_message(self, message : str): raise NotImplementedError
     @abstractmethod
     def error_message(self, message : str): raise NotImplementedError
+
+class StdIOHybridListener(HybridListener):
+    def status_message(self, message : str): print(f"MESSAGE: {message}")
+    def set_progress_value(self, percentage : int): print(f"PROGRESS: {str(percentage)}%")
+    def warning_message(self, message : str): print(f"WARNING: {message}")
+    def error_message(self, message : str): print(f"ERROR: {message}")
+
 
 class HybridInputParameters():
     def __init__(self,
@@ -1233,12 +1229,6 @@ class AbstractHybridScreen():
                     interpolated = calculation_parameters.wIray_2D.interpolate_value(x_coord[i], z_coord[j])
                     complex_amplitude[i, j] = numpy.sqrt(interpolated if interpolated > 0.0 else 0.0)
 
-            #intensity = wavefront.get_intensity()
-            #plt.imshow(intensity, extent=(x_coord[0], x_coord[-1], z_coord[0], z_coord[-1]), interpolation='nearest', cmap=cm.copper)
-            #plt.xlabel(f"size {intensity.shape[0]}")
-            #plt.ylabel(f"size {intensity.shape[1]}")
-            #plt.show()
-
         except IndexError:
             raise Exception("Unexpected Error during interpolation: try reduce Number of bins for I(Tangential) histogram")
 
@@ -1252,14 +1242,6 @@ class AbstractHybridScreen():
                                                                          wavefront=wavefront,
                                                                          propagation_distance=focallength_ff,
                                                                          propagation_type=HybridPropagationType.FAR_FIELD)
-
-        #intensity = propagated_wavefront.get_intensity()
-        #x_coord = propagated_wavefront.get_coordinate_x()
-        #z_coord = propagated_wavefront.get_coordinate_y()
-        #plt.imshow(intensity, extent=(x_coord[0], x_coord[-1], z_coord[0], z_coord[-1]), interpolation='nearest', cmap=cm.copper)
-        #plt.xlabel(f"size {intensity.shape[0]}")
-        #plt.ylabel(f"size {intensity.shape[1]}")
-        #plt.show()
 
         input_parameters.listener.set_progress_value(70)
         input_parameters.listener.status_message("2D FF - dif_xpzp: begin calculation")
@@ -1485,9 +1467,6 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
     def _manage_specific_initial_screen_projection_data(self, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters):
         xx_mirr, yy_mirr                    = self._get_footprint_spatial_coordinates(input_parameters, calculation_parameters)
         incidence_angles, reflection_angles = self._get_rays_angles(input_parameters, calculation_parameters) # in radians
-
-        print(numpy.min(1000*(incidence_angles)),  numpy.average(1000*(incidence_angles)),  numpy.max(1000*(incidence_angles)))
-        print(numpy.min(1000*(reflection_angles)), numpy.average(1000*(reflection_angles)), numpy.max(1000*(reflection_angles)))
 
         calculation_parameters.set("incidence_angles",  incidence_angles)
         calculation_parameters.set("reflection_angles", reflection_angles)
