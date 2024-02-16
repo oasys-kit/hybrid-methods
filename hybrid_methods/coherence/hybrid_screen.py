@@ -92,6 +92,8 @@ class HybridCalculationType:
     GRATING_SIZE_AND_ERROR_PROFILE = 3
     CRL_SIZE                       = 4
     CRL_SIZE_AND_ERROR_PROFILE     = 5
+    KB_SIZE                        = 6
+    KB_SIZE_AND_ERROR_PROFILE      = 7
 
 class HybridPropagationType:
     FAR_FIELD  = 0
@@ -240,7 +242,6 @@ class StdIOHybridListener(HybridListener):
     def warning_message(self, message : str): print(f"WARNING: {message}")
     def error_message(self, message : str): print(f"ERROR: {message}")
 
-
 class HybridInputParameters():
     def __init__(self,
                  listener : HybridListener,
@@ -308,6 +309,9 @@ class HybridInputParameters():
     def fft_n_pts(self, value : int): self.__fft_n_pts = value
 
     def get(self, name): return self.__additional_parameters.get(name, None)
+
+    @property
+    def additional_parameters(self) -> dict: return self.__additional_parameters
 
 class HybridGeometryAnalysis:
     BEAM_NOT_CUT_TANGENTIALLY = 1
@@ -454,7 +458,6 @@ class AbstractHybridScreen():
         @is_infinite.setter
         def is_infinite(self, value: bool): self.__is_infinite = value
 
-        
     class CalculationParameters: # Keep generic to allow any possible variation with the chosen raytracing tool
         def __init__(self,
                      energy: float=None,
@@ -703,7 +706,7 @@ class AbstractHybridScreen():
         def set(self, parameter_name, parameter_value): self.__calculation_parameters[parameter_name] = parameter_value
         def has(self, parameter_name): return parameter_name in self.__calculation_parameters.keys()
 
-    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
+    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider, **kwargs):
         if wave_optics_provider is None: wave_optics_provider = _DefaultWaveOpticsProvider()
 
         self._wave_optics_provider = wave_optics_provider
@@ -858,7 +861,6 @@ class AbstractHybridScreen():
     # -----------------------------------------------
     # CREATION OF ALL DATA NECESSARY TO WAVEFRONT PROPAGATION
 
-    @abstractmethod
     def _initialize_hybrid_calculation(self, input_parameters: HybridInputParameters, calculation_parameters : CalculationParameters):
         if input_parameters.diffraction_plane in [HybridDiffractionPlane.SAGITTAL, HybridDiffractionPlane.BOTH_2D, HybridDiffractionPlane.BOTH_2X1D]:
             calculation_parameters.xx_propagated = copy.deepcopy(calculation_parameters.xx_screen) + \
@@ -1426,22 +1428,9 @@ class AbstractHybridScreen():
 # SUBCLASSES OF HYBRID SCREEN OBJECT - BY CALCULATION TYPE
 # -------------------------------------------------------------
 
-class MissingRequiredCalculationParameter(Exception):
-    def __init__(self, parameter_names):
-        self.__parameter_names = parameter_names
-
-        error_message = "missing required calculation parameter(s): "
-        for name in parameter_names: error_message += name + ","
-
-        super(MissingRequiredCalculationParameter, self).__init__(error_message[:-1])
-
-    @property
-    def parameter_names(self) -> list: return self.__parameter_names
-
-
 class AbstractSimpleApertureHybridScreen(AbstractHybridScreen):
-    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
-        super(AbstractSimpleApertureHybridScreen, self).__init__(wave_optics_provider)
+    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider, **kwargs):
+        super(AbstractSimpleApertureHybridScreen, self).__init__(wave_optics_provider, **kwargs)
 
     @classmethod
     def get_specific_calculation_type(cls): return HybridCalculationType.SIMPLE_APERTURE
@@ -1456,10 +1445,9 @@ class AbstractSimpleApertureHybridScreen(AbstractHybridScreen):
         return (max(numpy.abs(calculation_parameters.x_max-calculation_parameters.x_min),
                     numpy.abs(calculation_parameters.z_max-calculation_parameters.z_min)))**2/calculation_parameters.wavelength/input_parameters.n_peaks
 
-
 class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
-    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
-        super(AbstractMirrorOrGratingSizeHybridScreen, self).__init__(wave_optics_provider)
+    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider, **kwargs):
+        super(AbstractMirrorOrGratingSizeHybridScreen, self).__init__(wave_optics_provider, **kwargs)
 
     @classmethod
     def get_specific_calculation_type(cls): return HybridCalculationType.MIRROR_OR_GRATING_SIZE
@@ -1633,10 +1621,10 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
 
     @staticmethod
     def _get_reflector_phase_shift(abscissas,
-                                  wavelength,
-                                  incidence_angle_function,
-                                  footprint_function,
-                                  current_phase_shift):
+                                   wavelength,
+                                   incidence_angle_function,
+                                   footprint_function,
+                                   current_phase_shift):
         return (-1.0) * 4 * numpy.pi / wavelength * numpy.sin(incidence_angle_function(abscissas)) * current_phase_shift.interpolate_values(footprint_function(abscissas))
 
     @abstractmethod
@@ -1654,8 +1642,8 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
     def _get_optical_element_spatial_limits(self, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters) -> Tuple[float, float, float, float]: raise NotImplementedError
 
 class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSizeHybridScreen):
-    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
-        super(_AbstractMirrorOrGratingSizeAndErrorHybridScreen, self).__init__(wave_optics_provider)
+    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider, **kwargs):
+        super(_AbstractMirrorOrGratingSizeAndErrorHybridScreen, self).__init__(wave_optics_provider, **kwargs)
 
     @classmethod
     def _is_geometry_analysis_enabled(cls): return False
@@ -1771,8 +1759,8 @@ class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSi
         return super(_AbstractMirrorOrGratingSizeAndErrorHybridScreen, self)._adjust_tangential_image_size_nf(image_size, focallength_nf, input_parameters, calculation_parameters)
 
 class AbstractMirrorSizeAndErrorHybridScreen(_AbstractMirrorOrGratingSizeAndErrorHybridScreen):
-    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
-        super(AbstractMirrorSizeAndErrorHybridScreen, self).__init__(wave_optics_provider)
+    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider, **kwargs):
+        super(AbstractMirrorSizeAndErrorHybridScreen, self).__init__(wave_optics_provider, **kwargs)
 
     @classmethod
     def get_specific_calculation_type(cls): return HybridCalculationType.MIRROR_SIZE_AND_ERROR_PROFILE
@@ -1807,8 +1795,8 @@ class AbstractMirrorSizeAndErrorHybridScreen(_AbstractMirrorOrGratingSizeAndErro
         return super(AbstractMirrorSizeAndErrorHybridScreen, self)._adjust_sagittal_image_size_nf(image_size, focallength_nf, input_parameters, calculation_parameters)
     
 class AbstractGratingSizeAndErrorHybridScreen(_AbstractMirrorOrGratingSizeAndErrorHybridScreen):
-    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
-        super(AbstractGratingSizeAndErrorHybridScreen, self).__init__(wave_optics_provider)
+    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider, **kwargs):
+        super(AbstractGratingSizeAndErrorHybridScreen, self).__init__(wave_optics_provider, **kwargs)
 
     @classmethod
     def get_specific_calculation_type(cls): return HybridCalculationType.GRATING_SIZE_AND_ERROR_PROFILE
@@ -1897,10 +1885,8 @@ class AbstractGratingSizeAndErrorHybridScreen(_AbstractMirrorOrGratingSizeAndErr
                                  current_phase_shift):
         return (-1.0) * 2 * numpy.pi / wavelength * (numpy.sin(incidence_angle_function(abscissas)) + numpy.sin(reflection_angle_function(abscissas))) * current_phase_shift.interpolate_values(footprint_function(abscissas))
 
-
-
 class AbstractCRLSizeHybridScreen(AbstractHybridScreen):
-    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
+    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider, **kwargs):
         super(AbstractCRLSizeHybridScreen, self).__init__(wave_optics_provider)
 
     @classmethod
@@ -1923,8 +1909,8 @@ class AbstractCRLSizeHybridScreen(AbstractHybridScreen):
         return 1 - xraylib.Refractive_Index_Re(material, energy, density)
 
 class AbstractCRLSizeAndErrorHybridScreen(AbstractCRLSizeHybridScreen):
-    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider):
-        super(AbstractCRLSizeAndErrorHybridScreen, self).__init__(wave_optics_provider)
+    def __init__(self, wave_optics_provider : HybridWaveOpticsProvider, **kwargs):
+        super(AbstractCRLSizeAndErrorHybridScreen, self).__init__(wave_optics_provider, **kwargs)
 
     @classmethod
     def get_specific_calculation_type(cls): return HybridCalculationType.CRL_SIZE_AND_ERROR_PROFILE
@@ -1967,6 +1953,73 @@ class AbstractCRLSizeAndErrorHybridScreen(AbstractCRLSizeHybridScreen):
 
         return -2 * numpy.pi * calculation_parameters.get("crl_delta") * thickness_error / calculation_parameters.wavelength
 
+class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
+    def __init__(self, wave_optics_provider, implementation, **kwargs):
+        super(AbstractKBMirrorSizeHybridScreen, self).__init__(wave_optics_provider=wave_optics_provider, **kwargs)
+        self._implementation = implementation
+
+    @classmethod
+    def get_specific_calculation_type(cls): return HybridCalculationType.KB_SIZE
+    @classmethod
+    def _get_internal_calculation_type(self): return HybridCalculationType.MIRROR_OR_GRATING_SIZE
+
+    def run_hybrid_method(self, input_parameters : HybridInputParameters):
+        kb_mirror_1_hybrid_screen = HybridScreenManager.Instance().create_hybrid_screen_manager(self._implementation, self._get_internal_calculation_type())
+        kb_mirror_2_hybrid_screen = HybridScreenManager.Instance().create_hybrid_screen_manager(self._implementation, self._get_internal_calculation_type())
+
+        kb_mirror_1            = input_parameters.optical_element.wrapped_optical_element[0].duplicate()
+        kb_mirror_1_input_beam = input_parameters.beam.wrapped_beam[0]
+        kb_mirror_2            = input_parameters.optical_element.wrapped_optical_element[1]
+        kb_mirror_2_input_beam = input_parameters.beam.wrapped_beam[1]
+
+        self._modify_image_plane_distance_on_kb_1(kb_mirror_1, kb_mirror_2)
+
+        input_parameters_1 = HybridInputParameters(listener=input_parameters.listener,
+                                                   beam=input_parameters.beam.__class__(beam=kb_mirror_1_input_beam),
+                                                   optical_element=input_parameters.optical_element.__class__(optical_element=kb_mirror_1),
+                                                   diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
+                                                   propagation_type=input_parameters.propagation_type,
+                                                   n_bins_x=input_parameters.n_bins_x,
+                                                   n_bins_z=input_parameters.n_bins_z,
+                                                   n_peaks=input_parameters.n_peaks,
+                                                   fft_n_pts=input_parameters.fft_n_pts,
+                                                   analyze_geometry=input_parameters.analyze_geometry,
+                                                   random_seed=input_parameters.random_seed,  # TODO: add field
+                                                   **input_parameters.additional_parameters)
+
+        input_parameters_2 = HybridInputParameters(listener=input_parameters.listener,
+                                                   beam=input_parameters.beam.__class__(beam=kb_mirror_2_input_beam),
+                                                   optical_element=input_parameters.optical_element.__class__(optical_element=kb_mirror_2),
+                                                   diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
+                                                   propagation_type=input_parameters.propagation_type,
+                                                   n_bins_x=input_parameters.n_bins_x,
+                                                   n_bins_z=input_parameters.n_bins_z,
+                                                   n_peaks=input_parameters.n_peaks,
+                                                   fft_n_pts=input_parameters.fft_n_pts,
+                                                   analyze_geometry=input_parameters.analyze_geometry,
+                                                   random_seed=input_parameters.random_seed,  # TODO: add field
+                                                   **input_parameters.additional_parameters)
+
+        kb_mirror_1_result = kb_mirror_1_hybrid_screen.run_hybrid_method(input_parameters_1)
+        kb_mirror_2_result = kb_mirror_2_hybrid_screen.run_hybrid_method(input_parameters_2)
+
+        return self._merge_results(kb_mirror_1_result, kb_mirror_2_result)
+
+    @abstractmethod
+    def _modify_image_plane_distance_on_kb_1(self, kb_mirror_1: BeamlineElement, kb_mirror_2: BeamlineElement): raise NotImplementedError
+    @abstractmethod
+    def _merge_results(self, kb_mirror_1_result: HybridCalculationResult, kb_mirror_2_result: HybridCalculationResult): raise NotImplementedError
+
+class AbstractKBMirrorSizeAndErrorHybridScreen(AbstractKBMirrorSizeHybridScreen):
+    def __init__(self, wave_optics_provider, implementation, **kwargs):
+        super(AbstractKBMirrorSizeAndErrorHybridScreen, self).__init__(wave_optics_provider=wave_optics_provider, implementation=implementation, **kwargs)
+
+    @classmethod
+    def get_specific_calculation_type(cls): return HybridCalculationType.KB_SIZE_AND_ERROR_PROFILE
+    @classmethod
+    def _get_internal_calculation_type(self): return HybridCalculationType.MIRROR_SIZE_AND_ERROR_PROFILE
+
+
 # -------------------------------------------------------------
 # HYBRID SCREEN FACTORY METHOD
 # -------------------------------------------------------------
@@ -1998,4 +2051,4 @@ class HybridScreenManager(object):
         hybrid_screen_class = self.__chains_hashmap.get(hybrid_implementation, {}).get(str(calculation_type), None)
 
         if hybrid_screen_class is None: raise Exception("HybridScreenManager not found for calculation type: "+ str(calculation_type))
-        else: return hybrid_screen_class(wave_optics_provider, **kwargs)
+        else: return hybrid_screen_class(wave_optics_provider, implementation=hybrid_implementation, **kwargs)
