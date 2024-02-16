@@ -182,11 +182,11 @@ class _DefaultWaveOpticsProvider(HybridWaveOpticsProvider):
 # -------------------------------------------------------------
 
 class HybridBeamWrapper():
-    def __init__(self, beam, lenght_units):
+    def __init__(self, beam, lenght_units, **kwargs):
         assert (beam is not None)
         assert (lenght_units in [HybridLengthUnits.METERS, HybridLengthUnits.CENTIMETERS, HybridLengthUnits.MILLIMETERS])
-
-        self._beam          = beam
+        if isinstance(beam, list):  self._beam = [b.duplicate(**kwargs) for b in beam]
+        else:                       self._beam = beam.duplicate(**kwargs)
         self._length_units = lenght_units
 
     @property
@@ -200,12 +200,13 @@ class HybridBeamWrapper():
         elif self._length_units == HybridLengthUnits.MILLIMETERS: return 0.001
 
     @abstractmethod
-    def duplicate(self): raise NotImplementedError
+    def duplicate(self, **kwargs): raise NotImplementedError
 
 class HybridOEWrapper():
-    def __init__(self, optical_element, name):
-        self._optical_element = optical_element
-        self._name            = name
+    def __init__(self, optical_element, name, **kwargs):
+        if isinstance(optical_element, list):  self._optical_element = [oe.duplicate(**kwargs) for oe in optical_element]
+        else:                                  self._optical_element = optical_element.duplicate(**kwargs)
+        self._name = name
 
     @property
     def wrapped_optical_element(self): return self._optical_element
@@ -215,7 +216,7 @@ class HybridOEWrapper():
     @abstractmethod
     def check_congruence(self, calculation_type : int): raise NotImplementedError
     @abstractmethod
-    def duplicate(self): raise NotImplementedError
+    def duplicate(self, **kwargs): raise NotImplementedError
 
 
 class HybridNotNecessaryWarning(Exception):
@@ -1975,8 +1976,8 @@ class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
         self._modify_image_plane_distance_on_kb_1(kb_mirror_1, kb_mirror_2)
 
         input_parameters_1 = HybridInputParameters(listener=input_parameters.listener,
-                                                   beam=input_parameters.beam.__class__(beam=kb_mirror_1_input_beam),
-                                                   optical_element=input_parameters.optical_element.__class__(optical_element=kb_mirror_1),
+                                                   beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_1_input_beam),
+                                                   optical_element=self._get_hybrid_oe_instance(input_parameters, kb_mirror_1),
                                                    diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
                                                    propagation_type=input_parameters.propagation_type,
                                                    n_bins_x=input_parameters.n_bins_x,
@@ -1988,8 +1989,8 @@ class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
                                                    **input_parameters.additional_parameters)
 
         input_parameters_2 = HybridInputParameters(listener=input_parameters.listener,
-                                                   beam=input_parameters.beam.__class__(beam=kb_mirror_2_input_beam),
-                                                   optical_element=input_parameters.optical_element.__class__(optical_element=kb_mirror_2),
+                                                   beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_2_input_beam),
+                                                   optical_element=self._get_hybrid_oe_instance(input_parameters, kb_mirror_2),
                                                    diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
                                                    propagation_type=input_parameters.propagation_type,
                                                    n_bins_x=input_parameters.n_bins_x,
@@ -2005,10 +2006,32 @@ class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
 
         return self._merge_results(kb_mirror_1_result, kb_mirror_2_result)
 
+    def _get_hybrid_beam_instance(self, input_parameters: HybridInputParameters, kb_mirror_input_beam):
+        return input_parameters.beam.__class__(beam=kb_mirror_input_beam)
+
+    def _get_hybrid_oe_instance(self, input_parameters: HybridInputParameters, kb_mirror):
+        return input_parameters.optical_element.__class__(optical_element=kb_mirror, name=None)
+
+    def _merge_results(self, kb_mirror_1_result: HybridCalculationResult, kb_mirror_2_result: HybridCalculationResult):
+        geometry_analysis = HybridGeometryAnalysis()
+        if kb_mirror_1_result.geometry_analysis.has_result(HybridGeometryAnalysis.BEAM_NOT_CUT_TANGENTIALLY):
+            geometry_analysis.add_analysis_result(HybridGeometryAnalysis.BEAM_NOT_CUT_SAGITTALLY)
+        if kb_mirror_2_result.geometry_analysis.has_result(HybridGeometryAnalysis.BEAM_NOT_CUT_TANGENTIALLY):
+            geometry_analysis.add_analysis_result(HybridGeometryAnalysis.BEAM_NOT_CUT_TANGENTIALLY)
+
+        return HybridCalculationResult(far_field_beam=self._merge_beams(kb_mirror_1_result.far_field_beam, kb_mirror_2_result.far_field_beam),
+                                       near_field_beam=self._merge_beams(kb_mirror_1_result.near_field_beam, kb_mirror_2_result.near_field_beam),
+                                       divergence_sagittal=kb_mirror_1_result.divergence_tangential,
+                                       divergence_tangential=kb_mirror_2_result.divergence_tangential,
+                                       position_sagittal=kb_mirror_1_result.position_tangential,
+                                       position_tangential=kb_mirror_2_result.position_tangential,
+                                       geometry_analysis=geometry_analysis)
+
     @abstractmethod
     def _modify_image_plane_distance_on_kb_1(self, kb_mirror_1: BeamlineElement, kb_mirror_2: BeamlineElement): raise NotImplementedError
     @abstractmethod
-    def _merge_results(self, kb_mirror_1_result: HybridCalculationResult, kb_mirror_2_result: HybridCalculationResult): raise NotImplementedError
+    def _merge_beams(self, beam_1: HybridBeamWrapper, beam_2: HybridBeamWrapper): raise NotImplementedError
+
 
 class AbstractKBMirrorSizeAndErrorHybridScreen(AbstractKBMirrorSizeHybridScreen):
     def __init__(self, wave_optics_provider, implementation, **kwargs):
