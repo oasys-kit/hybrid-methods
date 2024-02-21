@@ -66,8 +66,8 @@ from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.special import jn_zeros
 import scipy.constants as codata
 
-from hybrid_methods.fresnel_zone_plate.hankel_transform import hankel_transform
-from hybrid_methods.fresnel_zone_plate.refractive_index import get_delta_beta
+from hybrid_methods.fresnel_zone_plate.simulator.hankel_transform import hankel_transform
+from hybrid_methods.fresnel_zone_plate.simulator.refractive_index import get_delta_beta
 
 m2ev = codata.c * codata.h / codata.e
 
