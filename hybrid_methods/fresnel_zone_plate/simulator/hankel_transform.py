@@ -64,8 +64,7 @@ __TOTAL_CPU = multiprocessing.cpu_count()
 __N_CPU = 1 if __TOTAL_CPU < 2 else __TOTAL_CPU - 1
 
 def __inner_loop_single_iteration(bessel_zeros_jj, bessel_jm_jj, bessel_zeros_nz, bessel_zeros_n, bessel_jn, f_nz):
-    return numpy.dot(besselj(0, bessel_zeros_nz * bessel_zeros_jj / bessel_zeros_n) / (bessel_jn * bessel_jm_jj),
-                     f_nz)
+    return numpy.dot(besselj(0, bessel_zeros_nz * bessel_zeros_jj / bessel_zeros_n) / (bessel_jn * bessel_jm_jj), f_nz)
 
 __v_inner_loop = numpy.vectorize(__inner_loop_single_iteration)
 __v_inner_loop.excluded.add(2)
