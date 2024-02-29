@@ -1653,6 +1653,7 @@ class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSi
         super(_AbstractMirrorOrGratingSizeAndErrorHybridScreen, self)._manage_specific_initial_screen_projection_data(input_parameters, calculation_parameters)
 
         error_profile = self._get_error_profile(input_parameters, calculation_parameters)
+        calculation_parameters.set("error_profile", error_profile)
 
         w_mirror_lx = None
         w_mirror_lz = None
@@ -1673,7 +1674,6 @@ class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSi
 
         calculation_parameters.set("sagittal_error_profile_projection",   w_mirror_lx)
         calculation_parameters.set("tangential_error_profile_projection", w_mirror_lz)
-        calculation_parameters.set("error_profile",                       error_profile)
 
     @abstractmethod
     def _get_error_profile(self, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters) -> ScaledMatrix: raise NotImplementedError
