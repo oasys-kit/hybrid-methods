@@ -9,7 +9,7 @@ except AttributeError:
 
 NAME = 'shadow-hybrid-methods'
 
-VERSION = '1.0.8'
+VERSION = '1.0.9'
 ISRELEASED = True
 
 DESCRIPTION = 'Hybrid Methods, combining raytracing with wave optics'
@@ -65,6 +65,8 @@ SETUP_REQUIRES = (
 PACKAGES = [
     "hybrid_methods",
     "hybrid_methods.coherence",
+    "hybrid_methods.fresnel_zone_plate",
+    "hybrid_methods.fresnel_zone_plate.simulator",
     "hybrid_methods.undulator",
 ]
 
