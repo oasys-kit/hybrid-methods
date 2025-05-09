@@ -57,23 +57,21 @@ from wofry.propagator.wavefront1D.generic_wavefront import GenericWavefront1D
 from wofry.propagator.wavefront2D.generic_wavefront import GenericWavefront2D
 from wofryimpl.propagator.propagators1D.fresnel import Fresnel1D
 from wofryimpl.propagator.propagators2D.fresnel import Fresnel2D
-from wofryimpl.propagator.propagators1D.fraunhofer import Fraunhofer1D
-from wofryimpl.propagator.propagators2D.fraunhofer import Fraunhofer2D
 from wofryimpl.beamline.optical_elements.ideal_elements.screen import WOScreen1D as Screen1D, WOScreen as Screen2D
 from syned.beamline.beamline_element import BeamlineElement
 from syned.beamline.element_coordinates import ElementCoordinates
 
 wofry_propagation_manager = PropagationManager.Instance()
 try:
-    wofry_propagation_manager.add_propagator(Fresnel1D())
-    wofry_propagation_manager.add_propagator(Fresnel2D())
-    wofry_propagation_manager.set_initialized()
+    try: wofry_propagation_manager.add_propagator(Fresnel1D())
+    except Exception as e: print(e)
+    try: wofry_propagation_manager.add_propagator(Fresnel2D())
+    except Exception as e: print(e)
 except ValueError as e:
     print(e)
 
 from srxraylib.util.data_structures import ScaledArray, ScaledMatrix
 from srxraylib.util.inverse_method_sampler import Sampler2D, Sampler1D
-
 
 # -------------------------------------------------------------
 # CONSTANTS
