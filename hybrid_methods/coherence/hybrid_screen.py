@@ -1904,10 +1904,13 @@ class AbstractCRLSizeHybridScreen(AbstractHybridScreen):
     @staticmethod
     def get_delta(input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters):
         material = input_parameters.get("crl_material")
-        density  = xraylib.ElementDensity(xraylib.SymbolToAtomicNumber(material))
-        energy   = calculation_parameters.energy/1000 # in KeV
+        try:
+            density  = xraylib.ElementDensity(xraylib.SymbolToAtomicNumber(material))
+            energy   = calculation_parameters.energy/1000 # in KeV
 
-        return 1 - xraylib.Refractive_Index_Re(material, energy, density)
+            return 1 - xraylib.Refractive_Index_Re(material, energy, density)
+        except ValueError:
+            return 1
 
 class AbstractCRLSizeAndErrorHybridScreen(AbstractCRLSizeHybridScreen):
     def __init__(self, wave_optics_provider : HybridWaveOpticsProvider, **kwargs):
