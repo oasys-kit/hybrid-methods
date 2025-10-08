@@ -60,7 +60,9 @@
 #%               'SiO2' for Silicon Oxide
 #%
 #% The routine returns n = delta +i*beta
-import numpy, xraylib
+import numpy
+
+from wofryimpl.util import materials_library as ml
 from orangecontrib.shadow.util.shadow_util import ShadowPhysics
 
 REFRACTIVE_DATA = {
@@ -3567,11 +3569,30 @@ REFRACTIVE_DATA = {
 }
 
 
+def get_material_density(material_name):
+    if material_name is None: return 0.0
+    if str(material_name.strip()) == "": return 0.0
+
+    try:
+        compoundData = ml.CompoundParser(material_name)
+
+        n_elements = compoundData["nElements"]
+        if n_elements == 1:
+            return ml.ElementDensity(compoundData["Elements"][0])
+        else:
+            density = 0.0
+            mass_fractions = compoundData["massFractions"]
+            elements = compoundData["Elements"]
+            for i in range(n_elements): density += ml.ElementDensity(elements[i]) * mass_fractions[i]
+            return density
+    except:
+        return 0.0
+
 def get_delta_beta(energy_in_KeV, material, xraylib_only=True):
     if xraylib_only:
-        density = ShadowPhysics.getMaterialDensity(material)
-        delta = (1 - xraylib.Refractive_Index_Re(material, energy_in_KeV, density))
-        beta  = xraylib.Refractive_Index_Im(material, energy_in_KeV, density)
+        density = get_material_density(material)
+        delta = (1 - ml.Refractive_Index_Re(material, energy_in_KeV, density))
+        beta  = ml.Refractive_Index_Im(material, energy_in_KeV, density)
     elif material in REFRACTIVE_DATA.keys():
         data = REFRACTIVE_DATA[material]
         delta = numpy.interp([energy_in_KeV * 1000], data[:, 0], data[:, 1])[0]

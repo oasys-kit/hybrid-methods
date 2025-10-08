@@ -48,7 +48,7 @@ from typing import Union, Type, Tuple
 import numpy
 import copy
 from abc import abstractmethod
-import xraylib
+
 from scipy.interpolate import RectBivariateSpline
 
 from wofry.propagator.propagator import PropagationManager, PropagationParameters, PropagationElements
@@ -58,6 +58,7 @@ from wofry.propagator.wavefront2D.generic_wavefront import GenericWavefront2D
 from wofryimpl.propagator.propagators1D.fresnel import Fresnel1D
 from wofryimpl.propagator.propagators2D.fresnel import Fresnel2D
 from wofryimpl.beamline.optical_elements.ideal_elements.screen import WOScreen1D as Screen1D, WOScreen as Screen2D
+from wofryimpl.util import materials_library as ml
 from syned.beamline.beamline_element import BeamlineElement
 from syned.beamline.element_coordinates import ElementCoordinates
 
@@ -1903,10 +1904,10 @@ class AbstractCRLSizeHybridScreen(AbstractHybridScreen):
     def get_delta(input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters):
         material = input_parameters.get("crl_material")
         try:
-            density  = xraylib.ElementDensity(xraylib.SymbolToAtomicNumber(material))
+            density  = ml.ElementDensity(ml.SymbolToAtomicNumber(material))
             energy   = calculation_parameters.energy/1000 # in KeV
 
-            return 1 - xraylib.Refractive_Index_Re(material, energy, density)
+            return 1 - ml.Refractive_Index_Re(material, energy, density)
         except ValueError:
             return 1
 
