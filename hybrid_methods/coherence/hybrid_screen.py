@@ -410,10 +410,10 @@ class AbstractHybridScreen():
         def __init__(self,
                      ticket_tangential: dict=None,
                      ticket_sagittal: dict = None,
-                     max_tangential: float = numpy.Inf,
-                     min_tangential: float = -numpy.Inf,
-                     max_sagittal: float = numpy.Inf,
-                     min_sagittal: float = -numpy.Inf,
+                     max_tangential: float = numpy.inf,
+                     min_tangential: float = -numpy.inf,
+                     max_sagittal: float = numpy.inf,
+                     min_sagittal: float = -numpy.inf,
                      is_infinite: bool = False):
             self.__ticket_tangential = ticket_tangential
             self.__ticket_sagittal   = ticket_sagittal  
