@@ -63,7 +63,6 @@
 import numpy
 
 from wofryimpl.util import materials_library as ml
-from orangecontrib.shadow.util.shadow_util import ShadowPhysics
 
 REFRACTIVE_DATA = {
 'Au': numpy.array([[30., 0.153792322, 0.549643338],
