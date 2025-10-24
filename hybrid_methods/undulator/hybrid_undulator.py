@@ -47,6 +47,10 @@
 from typing import List, Any
 import sys
 import numpy
+import time
+import random
+import copy
+
 from scipy.signal import convolve2d
 
 from srxraylib.util.histograms import get_fwhm, get_sigma
@@ -57,7 +61,6 @@ from srxraylib.util.custom_distribution import CustomDistribution
 import scipy.constants as codata
 
 m2ev = codata.c * codata.h / codata.e
-
 
 class Distribution:
     POSITION = 0
@@ -73,10 +76,32 @@ if SRW_INSTALLED:
 
 class HybridUndulatorListener:
     def signal_event(self, event: str, data: Any): raise NotImplementedError()
-    def receive_messages(self, messages: List[str]): raise NotImplementedError()
+    def receive_messages(self, messages: List[str], data: Any): raise NotImplementedError()
+
+
+class DefaultHybridUndulatorListener(HybridUndulatorListener):
+    def __init__(self): pass
+    
+    def signal_event(self, event: str, data: Any):
+        print("Received event: {}".format(event))
+        print("Received data: {}".format(data))
+
+    def receive_messages(self, messages: List[str], data: Any):
+        print("Received messages: {}".format(messages))
+        print("Received data: {}".format(data))
 
 class HybridUndulatorInputParameters:
     def __init__(self,
+                 number_of_rays                                              = 5000,
+                 seed                                                        = 6775431,
+                 coherent_beam                                               = 0,
+                 phase_diff                                                  = 0.0,
+                 polarization_degree                                         = 1.0,
+                 use_harmonic                                                = 0,
+                 harmonic_number                                             = 1,
+                 energy                                                      = 10000.0,
+                 energy_to                                                   = 10100.0,
+                 energy_points                                               = 10,
                  number_of_periods                                           = 184,
                  undulator_period                                            = 0.025,
                  Kv                                                          = 0.857,
@@ -99,6 +124,7 @@ class HybridUndulatorInputParameters:
                  electron_beam_divergence_h                                  = 2.9e-06,
                  electron_beam_divergence_v                                  = 1.5e-06,
                  type_of_initialization                                      = 0,
+                 use_stokes                                                  = 1,
                  auto_expand                                                 = 0,
                  auto_expand_rays                                            = 0,
                  source_dimension_wf_h_slit_gap                              = 0.0015,
@@ -140,9 +166,23 @@ class HybridUndulatorInputParameters:
                  x_divergences_factor                                        = 1.0,
                  z_divergences_factor                                        = 1.0,
                  combine_strategy                                            = 0,
-
-
+                 distribution_source                                         = 0,
+                 energy_step                                                 = None,
+                 power_step                                                  = None,
+                 compute_power                                               = False,
+                 integrated_flux                                             = None,
+                 power_density                                               = None,
                  ):
+        self.number_of_rays                                              = number_of_rays
+        self.seed                                                        = seed
+        self.coherent_beam                                               = coherent_beam
+        self.phase_diff                                                  = phase_diff
+        self.polarization_degree                                         = polarization_degree
+        self.use_harmonic                                                = use_harmonic
+        self.harmonic_number                                             = harmonic_number
+        self.energy                                                      = energy
+        self.energy_to                                                   = energy_to
+        self.energy_points                                               = energy_points
         self.number_of_periods                                           = number_of_periods
         self.undulator_period                                            = undulator_period
         self.Kv                                                          = Kv
@@ -165,6 +205,7 @@ class HybridUndulatorInputParameters:
         self.electron_beam_divergence_h                                  = electron_beam_divergence_h
         self.electron_beam_divergence_v                                  = electron_beam_divergence_v
         self.type_of_initialization                                      = type_of_initialization
+        self.use_stokes                                                  = use_stokes
         self.auto_expand                                                 = auto_expand
         self.auto_expand_rays                                            = auto_expand_rays
         self.source_dimension_wf_h_slit_gap                              = source_dimension_wf_h_slit_gap
@@ -206,41 +247,251 @@ class HybridUndulatorInputParameters:
         self.x_divergences_factor                                        = x_divergences_factor
         self.z_divergences_factor                                        = z_divergences_factor
         self.combine_strategy                                            = combine_strategy
+        self.distribution_source                                         = distribution_source
+        self.energy_step                                                 = energy_step
+        self.power_step                                                  = power_step
+        self.compute_power                                               = compute_power
+        self.integrated_flux                                             = integrated_flux
+        self.power_density                                               = power_density
 
 
 class HybridUndulatorOutputParameters:
     def __init__(self,
-                 moment_x  = 0.0,
-                 moment_y  = 0.0,
-                 moment_z  = 0.0,
-                 moment_xp = 0.0,
-                 moment_yp = 0.0,
+                 moment_x                  = 0.0,
+                 moment_y                  = 0.0,
+                 moment_z                  = 0.0,
+                 moment_xp                 = 0.0,
+                 moment_yp                 = 0.0,
+                 cumulated_energies        = None,
+                 cumulated_integrated_flux = None,
+                 cumulated_power_density   = None,
+                 cumulated_power           = None,
+                 initial_flux              = 0.0,
+                 total_power               = 0.0
     ):
-        self.moment_x  = moment_x
-        self.moment_y  = moment_y
-        self.moment_z  = moment_z
-        self.moment_xp = moment_xp
-        self.moment_yp = moment_yp
-
+        self.moment_x                  = moment_x
+        self.moment_y                  = moment_y
+        self.moment_z                  = moment_z
+        self.moment_xp                 = moment_xp
+        self.moment_yp                 = moment_yp
+        self.cumulated_energies        = cumulated_energies
+        self.cumulated_integrated_flux = cumulated_integrated_flux
+        self.cumulated_power_density   = cumulated_power_density
+        self.cumulated_power           = cumulated_power
+        self.initial_flux              = initial_flux
+        self.total_power               = total_power
 
 class HybridUndulatorCalculator:
 
-    def __init__(self, input_parameters: HybridUndulatorInputParameters, listener: HybridUndulatorOutputParameters):
+    def __init__(self, 
+                 input_parameters: HybridUndulatorInputParameters, 
+                 listener: HybridUndulatorListener = None):
         if not SRW_INSTALLED: raise ImportError("Please install SRW to use the hybrid methods")
 
-        self.__input_parameters = input_parameters
-        self.__listener         = listener
+        self.__input_parameters  = input_parameters
+        self.__listener          = listener if not listener is None else DefaultHybridUndulatorListener()
         self.__output_parameters = None
 
+    def get_input_parameters(self) -> HybridUndulatorInputParameters: return self.__input_parameters
+    def get_output_parameters(self) -> HybridUndulatorOutputParameters: return self.__output_parameters
+
     def run_hybrid_undulator_simulation(self, do_cumulated_calculations = False):
-        output_parameters = HybridUndulatorOutputParameters()
+        self.__output_parameters = HybridUndulatorOutputParameters()
+
+        self.__listener.receive_messages(["Generating Initial Ray-Tracing beam"], data={"progress": 10})
+        output_beam = self._generate_initial_beam()
+        self.__listener.receive_messages(["Starting Wave-Optics Calculations"], data={"progress": 20})
+        total_power = self.__apply_undulator_distributions_calculation(output_beam , do_cumulated_calculations)
+        self.__output_parameters.total_power = total_power
+
+        return output_beam
 
 
+    # ABSTRACT METHODS ###############################################
+    #
+    def _generate_initial_beam(self): raise NotImplementedError
+    def _get_rays_from_beam(self, output_beam: Any): raise NotImplementedError
+    def _get_k_from_energy(self, energies: numpy.ndarray): raise NotImplementedError
+    def _retrace_output_beam(self, output_beam: Any, distance: float): raise NotImplementedError
+    #
+    # ###############################################################
+    
+    ''' -> to the widget
+    def __check_fields(widget):
+    widget.number_of_rays = congruence.checkPositiveNumber(widget.number_of_rays, "Number of rays")
+    widget.seed = congruence.checkPositiveNumber(widget.seed, "Seed")
 
+    if widget.use_harmonic == 0:
+        if widget.distribution_source != 0: raise Exception("Harmonic Energy can be computed only for explicit SRW Calculation")
+
+        widget.harmonic_number = congruence.checkStrictlyPositiveNumber(widget.harmonic_number, "Harmonic Number")
+    elif widget.use_harmonic == 2:
+        if widget.distribution_source != 0: raise Exception("Energy Range can be computed only for explicit SRW Calculation")
+
+        widget.energy = congruence.checkStrictlyPositiveNumber(widget.energy, "Photon Energy From")
+        widget.energy_to = congruence.checkStrictlyPositiveNumber(widget.energy_to, "Photon Energy To")
+        widget.energy_points = congruence.checkStrictlyPositiveNumber(widget.energy_points, "Nr. Energy Values")
+        congruence.checkGreaterThan(widget.energy_to, widget.energy, "Photon Energy To", "Photon Energy From")
+    else:
+        widget.energy = congruence.checkStrictlyPositiveNumber(widget.energy, "Photon Energy")
+
+    if widget.optimize_source > 0:
+        widget.max_number_of_rejected_rays = congruence.checkPositiveNumber(widget.max_number_of_rejected_rays,
+                                                                            "Max number of rejected rays")
+        congruence.checkFile(widget.optimize_file_name)
+    '''
+    
+    
+    def __apply_undulator_distributions_calculation(self, output_beam, do_cumulated_calculations):
+        input_parameters: HybridUndulatorInputParameters   = self.__input_parameters
+        output_parameters: HybridUndulatorOutputParameters = self.__output_parameters
+        listener: HybridUndulatorListener                  = self.__listener
+
+        if input_parameters.use_harmonic == 2: # range
+            energy_points = int(input_parameters.energy_points)
+
+            x_array = numpy.full(energy_points, None)
+            z_array = numpy.full(energy_points, None)
+
+            intensity_source_dimension_array = numpy.full(energy_points, None)
+
+            x_first_array = numpy.full(energy_points, None)
+            z_first_array = numpy.full(energy_points, None)
+
+            intensity_angular_distribution_array = numpy.full(energy_points, None)
+            energies = numpy.linspace(input_parameters.energy, input_parameters.energy_to, energy_points)
+
+            total_power = None
+            delta_e = energies[1] - energies[0]
+
+            if input_parameters.use_stokes != 1: raise ValueError("multi energy calculation is possible with calculation with Stokes only")
+
+            listener.receive_messages(["Computing integrated flux from Radiation Stokes Parameters"], data={"progress":25})
+
+            flux_from_stokes = _get_integrated_flux_from_stokes(input_parameters, output_parameters, energies)
+
+            integrated_flux_array = numpy.divide(flux_from_stokes * delta_e, 0.001 * energies)  # switch to BW = energy step
+            nr_rays_array         = input_parameters.number_of_rays * integrated_flux_array / numpy.sum(integrated_flux_array)
+            prog_bars             = numpy.linspace(30, 80, energy_points)
+
+            current_seed = time.time() if input_parameters.seed == 0 else input_parameters.seed
+            random.seed(current_seed)
+
+            output_rays = self._get_rays_from_beam(output_beam)
+
+            first_index = 0
+            last_index  = 0
+            for energy, i in zip(energies, range(energy_points)):
+                last_index = min(first_index + int(nr_rays_array[i]), len(output_rays))
+                rays       = output_rays[first_index:last_index]
+
+                listener.receive_messages([f"Running SRW for energy: {energy}"], data={})
+
+                x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, integrated_flux, _ = _run_SRW_calculation(input_parameters,
+                                                                                                                                              output_parameters,
+                                                                                                                                              energy,
+                                                                                                                                              flux_from_stokes=float(flux_from_stokes[i]),
+                                                                                                                                              do_cumulated_calculations=False)
+
+                x_array[i]       = x
+                z_array[i]       = z
+                x_first_array[i] = x_first
+                z_first_array[i] = z_first
+                intensity_source_dimension_array[i]     = intensity_source_dimension
+                intensity_angular_distribution_array[i] = intensity_angular_distribution
+
+                rays[:, 10] = self._get_k_from_energy(numpy.random.uniform(energy, energy + delta_e, size=len(rays)))
+
+                listener.receive_messages([f"Applying new Spatial/Angular Distribution for energy: {energy}"], data={})
+                
+
+                _generate_user_defined_distribution_from_srw(rays=rays,
+                                                              coord_x=x_array[i],
+                                                              coord_z=z_array[i],
+                                                              intensity=intensity_source_dimension_array[i],
+                                                              distribution_type=Distribution.POSITION,
+                                                              kind_of_sampler=input_parameters.kind_of_sampler,
+                                                              seed=current_seed + 1)
+                _generate_user_defined_distribution_from_srw(rays=rays,
+                                                              coord_x=x_first_array[i],
+                                                              coord_z=z_first_array[i],
+                                                              intensity=intensity_angular_distribution_array[i],
+                                                              distribution_type=Distribution.DIVERGENCE,
+                                                              kind_of_sampler=input_parameters.kind_of_sampler,
+                                                              seed=current_seed + 2)
+
+                listener.receive_messages([], data={"progress": prog_bars[i]})
+                
+                first_index = last_index
+                current_seed += 2
+
+            if not last_index == len(output_rays):
+                excluded_rays = output_rays[last_index:]
+                excluded_rays[:, 9] = -999
+            
+            output_parameters.initial_flux = None
+        else:
+            integrated_flux = None
+
+            energy = input_parameters.energy if input_parameters.use_harmonic == 1 else _resonance_energy(input_parameters, 
+                                                                                                          harmonic=input_parameters.harmonic_number)
+
+            if input_parameters.distribution_source == 0:
+                listener.receive_messages(["Running SRW"], data={})
+
+
+                if input_parameters.use_stokes == 1: flux_from_stokes = _get_integrated_flux_from_stokes(input_parameters, output_parameters,[energy])[0]
+                else:                                flux_from_stokes = 0.0
+
+                x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, integrated_flux, total_power = _run_SRW_calculation(input_parameters,
+                                                                                                                                                        output_parameters,
+                                                                                                                                                        energy,
+                                                                                                                                                        flux_from_stokes=flux_from_stokes,
+                                                                                                                                                        do_cumulated_calculations=do_cumulated_calculations)
+            elif input_parameters.distribution_source == 1:
+                listener.receive_messages(["Loading SRW files"], data={})
+
+                x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution = _load_SRW_files(input_parameters)
+                total_power = None
+            elif input_parameters.distribution_source == 2:  # ASCII FILES
+                listener.receive_messages(["Loading Ascii files"], data={})
+
+                x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution = _load_ASCII_files(input_parameters)
+                total_power = None
+            else:
+                raise ValueError(f"Distribution source not valid {input_parameters.distribution_source}")
+            
+            output_parameters.initial_flux = integrated_flux
+
+            listener.receive_messages(["Applying new Spatial/Angular Distribution"], data={"progress": 50})
+            
+            _generate_user_defined_distribution_from_srw(rays=output_beam._beam.rays,
+                                                          coord_x=x,
+                                                          coord_z=z,
+                                                          intensity=intensity_source_dimension,
+                                                          distribution_type=Distribution.POSITION,
+                                                          kind_of_sampler=input_parameters.kind_of_sampler,
+                                                          seed=time.time() if input_parameters.seed == 0 else input_parameters.seed + 1)
+
+            listener.receive_messages([], data={"progress": 70})
+
+            _generate_user_defined_distribution_from_srw(rays=output_beam._beam.rays,
+                                                          coord_x=x_first,
+                                                          coord_z=z_first,
+                                                          intensity=intensity_angular_distribution,
+                                                          distribution_type=Distribution.DIVERGENCE,
+                                                          kind_of_sampler=input_parameters.kind_of_sampler,
+                                                          seed=time.time() if input_parameters.seed == 0 else input_parameters.seed + 2)
+
+        if input_parameters.distribution_source == 0 and _is_canted_undulator(input_parameters) and output_parameters.waist_position != 0.0:
+            self._retrace_output_beam(output_beam, -output_parameters.waist_position)
+            
+        return total_power
 
 ####################################################################################
 # SRW CALCULATION
 ####################################################################################
+
 
 def __get_source_slit_data(input_parameters: HybridUndulatorInputParameters, direction="b"):
     if input_parameters.auto_expand == 1:
@@ -272,11 +523,11 @@ def __set_which_waist(input_parameters: HybridUndulatorInputParameters):
 def __gamma(input_parameters: HybridUndulatorInputParameters):
     return 1e9 * input_parameters.electron_energy_in_GeV / (codata.m_e * codata.c ** 2 / codata.e)
 
-def __resonance_energy(input_parameters: HybridUndulatorInputParameters, theta_x=0.0, theta_z=0.0, harmonic=1):
+def _resonance_energy(input_parameters: HybridUndulatorInputParameters, theta_x=0.0, theta_z=0.0, harmonic=1):
     g = __gamma(input_parameters)
 
-    wavelength = ((input_parameters.undulator_period / (2.0 * g ** 2)) * \
-                  (1 + input_parameters.Kv ** 2 / 2.0 + input_parameters.Kh ** 2 / 2.0 + \
+    wavelength = ((input_parameters.undulator_period / (2.0 * g ** 2)) *
+                  (1 + input_parameters.Kv ** 2 / 2.0 + input_parameters.Kh ** 2 / 2.0 +
                    g ** 2 * (theta_x ** 2 + theta_z ** 2))) / harmonic
 
     return m2ev / wavelength
@@ -284,7 +535,7 @@ def __resonance_energy(input_parameters: HybridUndulatorInputParameters, theta_x
 def __get_default_initial_z(input_parameters: HybridUndulatorInputParameters):
     return input_parameters.longitudinal_central_position - 0.5 * input_parameters.undulator_period * (input_parameters.number_of_periods + 8)  # initial Longitudinal Coordinate (set before the ID)
 
-def __is_canted_undulator(input_parameters: HybridUndulatorInputParameters):
+def _is_canted_undulator(input_parameters: HybridUndulatorInputParameters):
     return input_parameters.longitudinal_central_position != 0.0
 
 def __get_minimum_propagation_distance(input_parameters: HybridUndulatorInputParameters):
@@ -462,7 +713,7 @@ def __calculate_automatic_waste_position(input_parameters: HybridUndulatorInputP
     sizes_tot_y   = numpy.zeros(input_parameters.number_of_waist_fit_points)
 
     for i in range(input_parameters.number_of_waist_fit_points):
-        position = positions[i]
+        position = float(positions[i])
 
         elecBeam    = __create_electron_beam(input_parameters, distribution_type=Distribution.POSITION, position=position, use_nominal=False)
         elecBeam_Ph = __create_electron_beam(input_parameters, distribution_type=Distribution.POSITION, use_nominal=True)
@@ -584,7 +835,7 @@ def __transform_srw_array(output_array, mesh):
     elif len_output_array < tot_len:
         aux_array = srw_array('d', [0] * len_output_array)
         for i in range(len_output_array): aux_array[i] = output_array[i]
-        output_array = numpy.array(srw_array(aux_array))
+        output_array = numpy.array(aux_array)
     else:
         output_array = numpy.array(output_array)
 
@@ -603,7 +854,7 @@ def __calculate_waist_position(input_parameters: HybridUndulatorInputParameters,
                                output_parameters : HybridUndulatorOutputParameters,
                                energy):
     if input_parameters.distribution_source == 0:  # SRW calculation
-        if __is_canted_undulator(input_parameters):
+        if _is_canted_undulator(input_parameters):
             if input_parameters.waist_position_calculation == 0:  # None
                 input_parameters.waist_position = 0.0
             elif input_parameters.waist_position_calculation == 1:  # Automatic
@@ -623,9 +874,9 @@ def __calculate_waist_position(input_parameters: HybridUndulatorInputParameters,
     else:
         output_parameters.waist_position = 0.0
 
-def __get_integrated_flux_from_stokes(input_parameters: HybridUndulatorInputParameters,
-                                      output_parameters: HybridUndulatorOutputParameters,
-                                      energies):
+def _get_integrated_flux_from_stokes(input_parameters: HybridUndulatorInputParameters,
+                                     output_parameters: HybridUndulatorOutputParameters,
+                                     energies):
     eStart = energies[0]
     eFin = energies[-1]
     ne = len(energies)
@@ -634,7 +885,7 @@ def __get_integrated_flux_from_stokes(input_parameters: HybridUndulatorInputPara
     elecBeam  = __create_electron_beam(input_parameters, distribution_type=Distribution.DIVERGENCE, position=output_parameters.waist_position)
     wfr       = __create_initial_wavefront_mesh(input_parameters, elecBeam, energies[0])
 
-    h_max = int(2.5 * eFin / __resonance_energy(input_parameters, harmonic=1))
+    h_max = int(2.5 * eFin / _resonance_energy(input_parameters, harmonic=1))
 
     arPrecF = [0] * 5  # for spectral flux vs photon energy
     arPrecF[0] = 1  # initial UR harmonic to take into account
@@ -658,7 +909,7 @@ def __get_integrated_flux_from_stokes(input_parameters: HybridUndulatorInputPara
     return numpy.array(stkF.arS[0:ne])
 
 
-def __run_SRW_calculation(input_parameters: HybridUndulatorInputParameters,
+def _run_SRW_calculation(input_parameters: HybridUndulatorInputParameters,
                           output_parameters: HybridUndulatorOutputParameters,
                           energy, flux_from_stokes=0.0, do_cumulated_calculations=False):
     __calculate_waist_position(input_parameters, output_parameters, energy)
@@ -739,13 +990,13 @@ def __run_SRW_calculation(input_parameters: HybridUndulatorInputParameters,
 
     return x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, integrated_flux, total_power
 
-def __generate_user_defined_distribution_from_srw(rays: numpy. ndarray,
-                                                  coord_x : numpy. ndarray,
-                                                  coord_z : numpy. ndarray,
-                                                  intensity : numpy. ndarray,
-                                                  distribution_type=Distribution.POSITION,
-                                                  kind_of_sampler=1,
-                                                  seed=0):
+def _generate_user_defined_distribution_from_srw(rays: numpy. ndarray,
+                                                 coord_x : numpy. ndarray,
+                                                 coord_z : numpy. ndarray,
+                                                 intensity : numpy. ndarray,
+                                                 distribution_type=Distribution.POSITION,
+                                                 kind_of_sampler=1,
+                                                 seed=0):
     if kind_of_sampler == 2:
         s2d = Sampler2D(intensity, coord_x, coord_z)
 
@@ -824,13 +1075,9 @@ def __generate_user_defined_distribution_from_srw(rays: numpy. ndarray,
 # SRW FILES
 ####################################################################################
 
-def __load_SRW_files(widget):
-    x, z, intensity_source_dimension = __load_numpy_format(widget.source_dimension_srw_file)
-    x_first, z_first, intensity_angular_distribution = __load_numpy_format(widget.angular_distribution_srw_file)
-
-    # SWITCH FROM SRW METERS TO SHADOWOUI U.M.
-    x = x / widget.workspace_units_to_m
-    z = z / widget.workspace_units_to_m
+def _load_SRW_files(input_parameters: HybridUndulatorInputParameters):
+    x, z, intensity_source_dimension = __load_numpy_format(input_parameters.source_dimension_srw_file)
+    x_first, z_first, intensity_angular_distribution = __load_numpy_format(input_parameters.angular_distribution_srw_file)
 
     return x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution
 
@@ -897,21 +1144,21 @@ def __load_numpy_format(filename):
 # ASCII FILES
 ####################################################################################
 
-def __load_ASCII_files(widget):
-    x_positions = __extract_distribution_from_file(distribution_file_name=widget.x_positions_file)
-    z_positions = __extract_distribution_from_file(distribution_file_name=widget.z_positions_file)
+def _load_ASCII_files(input_parameters: HybridUndulatorInputParameters):
+    x_positions = __extract_distribution_from_file(distribution_file_name=input_parameters.x_positions_file)
+    z_positions = __extract_distribution_from_file(distribution_file_name=input_parameters.z_positions_file)
 
-    x_positions[:, 0] *= widget.x_positions_factor
-    z_positions[:, 0] *= widget.z_positions_factor
+    x_positions[:, 0] *= input_parameters.x_positions_factor
+    z_positions[:, 0] *= input_parameters.z_positions_factor
 
-    x_divergences = __extract_distribution_from_file(distribution_file_name=widget.x_divergences_file)
-    z_divergences = __extract_distribution_from_file(distribution_file_name=widget.z_divergences_file)
+    x_divergences = __extract_distribution_from_file(distribution_file_name=input_parameters.x_divergences_file)
+    z_divergences = __extract_distribution_from_file(distribution_file_name=input_parameters.z_divergences_file)
 
-    x_divergences[:, 0] *= widget.x_divergences_factor
-    z_divergences[:, 0] *= widget.z_divergences_factor
+    x_divergences[:, 0] *= input_parameters.x_divergences_factor
+    z_divergences[:, 0] *= input_parameters.z_divergences_factor
 
-    x, z, intensity_source_dimension = __combine_distributions(widget, x_positions, z_positions)
-    x_first, z_first, intensity_angular_distribution = __combine_distributions(widget, x_divergences, z_divergences)
+    x, z, intensity_source_dimension                 = __combine_distributions(input_parameters, x_positions,   z_positions)
+    x_first, z_first, intensity_angular_distribution = __combine_distributions(input_parameters, x_divergences, z_divergences)
 
     return x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution
 
