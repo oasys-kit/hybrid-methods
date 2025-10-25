@@ -49,7 +49,6 @@ import sys
 import numpy
 import time
 import random
-import copy
 
 from scipy.signal import convolve2d
 
@@ -57,6 +56,8 @@ from srxraylib.util.histograms import get_fwhm, get_sigma
 from srxraylib.util.inverse_method_sampler import Sampler2D
 from srxraylib.util.random_distributions import Distribution2D, Grid2D, distribution_from_grid
 from srxraylib.util.custom_distribution import CustomDistribution
+
+from syned.storage_ring.electron_beam import ElectronBeam
 
 import scipy.constants as codata
 
@@ -92,11 +93,9 @@ class DefaultHybridUndulatorListener(HybridUndulatorListener):
 
 class HybridUndulatorInputParameters:
     def __init__(self,
+                 electron_beam: ElectronBeam                                 = ElectronBeam(),
                  number_of_rays                                              = 5000,
                  seed                                                        = 6775431,
-                 coherent_beam                                               = 0,
-                 phase_diff                                                  = 0.0,
-                 polarization_degree                                         = 1.0,
                  use_harmonic                                                = 0,
                  harmonic_number                                             = 1,
                  energy                                                      = 10000.0,
@@ -116,13 +115,6 @@ class HybridUndulatorInputParameters:
                  horizontal_central_position                                 = 0.0,
                  vertical_central_position                                   = 0.0,
                  longitudinal_central_position                               = 0.0,
-                 electron_energy_in_GeV                                      = 6.0,
-                 electron_energy_spread                                      = 1.35e-3,
-                 ring_current                                                = 0.2,
-                 electron_beam_size_h                                        = 1.45e-05,
-                 electron_beam_size_v                                        = 2.8e-06,
-                 electron_beam_divergence_h                                  = 2.9e-06,
-                 electron_beam_divergence_v                                  = 1.5e-06,
                  type_of_initialization                                      = 0,
                  use_stokes                                                  = 1,
                  auto_expand                                                 = 0,
@@ -173,11 +165,9 @@ class HybridUndulatorInputParameters:
                  integrated_flux                                             = None,
                  power_density                                               = None,
                  ):
+        self.electron_beam                                               = electron_beam
         self.number_of_rays                                              = number_of_rays
         self.seed                                                        = seed
-        self.coherent_beam                                               = coherent_beam
-        self.phase_diff                                                  = phase_diff
-        self.polarization_degree                                         = polarization_degree
         self.use_harmonic                                                = use_harmonic
         self.harmonic_number                                             = harmonic_number
         self.energy                                                      = energy
@@ -197,13 +187,6 @@ class HybridUndulatorInputParameters:
         self.horizontal_central_position                                 = horizontal_central_position
         self.vertical_central_position                                   = vertical_central_position
         self.longitudinal_central_position                               = longitudinal_central_position
-        self.electron_energy_in_GeV                                      = electron_energy_in_GeV
-        self.electron_energy_spread                                      = electron_energy_spread
-        self.ring_current                                                = ring_current
-        self.electron_beam_size_h                                        = electron_beam_size_h
-        self.electron_beam_size_v                                        = electron_beam_size_v
-        self.electron_beam_divergence_h                                  = electron_beam_divergence_h
-        self.electron_beam_divergence_v                                  = electron_beam_divergence_v
         self.type_of_initialization                                      = type_of_initialization
         self.use_stokes                                                  = use_stokes
         self.auto_expand                                                 = auto_expand
@@ -493,7 +476,7 @@ class HybridUndulatorCalculator:
 ####################################################################################
 
 
-def __get_source_slit_data(input_parameters: HybridUndulatorInputParameters, direction="b"):
+def _get_source_slit_data(input_parameters: HybridUndulatorInputParameters, direction="b"):
     if input_parameters.auto_expand == 1:
         source_dimension_wf_h_slit_points = int(numpy.ceil(0.55 * input_parameters.source_dimension_wf_h_slit_points) * 2)
         source_dimension_wf_v_slit_points = int(numpy.ceil(0.55 * input_parameters.source_dimension_wf_v_slit_points) * 2)
@@ -512,7 +495,7 @@ def __get_source_slit_data(input_parameters: HybridUndulatorInputParameters, dir
     else:
         return source_dimension_wf_h_slit_points, source_dimension_wf_h_slit_gap, source_dimension_wf_v_slit_points, source_dimension_wf_v_slit_gap
 
-def __set_which_waist(input_parameters: HybridUndulatorInputParameters):
+def _set_which_waist(input_parameters: HybridUndulatorInputParameters):
     if input_parameters.which_waist == 0:  # horizontal
         input_parameters.waist_position_auto = round(input_parameters.waist_position_auto_h, 4)
     elif input_parameters.which_waist == 1:  # vertical
@@ -520,11 +503,11 @@ def __set_which_waist(input_parameters: HybridUndulatorInputParameters):
     else:  # middle point
         input_parameters.waist_position_auto = round(0.5 * (input_parameters.waist_position_auto_h + input_parameters.waist_position_auto_v), 4)
 
-def __gamma(input_parameters: HybridUndulatorInputParameters):
-    return 1e9 * input_parameters.electron_energy_in_GeV / (codata.m_e * codata.c ** 2 / codata.e)
+def _gamma(input_parameters: HybridUndulatorInputParameters):
+    return 1e9 * input_parameters.electron_beam._energy_in_GeV / (codata.m_e * codata.c ** 2 / codata.e)
 
 def _resonance_energy(input_parameters: HybridUndulatorInputParameters, theta_x=0.0, theta_z=0.0, harmonic=1):
-    g = __gamma(input_parameters)
+    g = _gamma(input_parameters)
 
     wavelength = ((input_parameters.undulator_period / (2.0 * g ** 2)) *
                   (1 + input_parameters.Kv ** 2 / 2.0 + input_parameters.Kh ** 2 / 2.0 +
@@ -532,7 +515,7 @@ def _resonance_energy(input_parameters: HybridUndulatorInputParameters, theta_x=
 
     return m2ev / wavelength
 
-def __get_default_initial_z(input_parameters: HybridUndulatorInputParameters):
+def _get_default_initial_z(input_parameters: HybridUndulatorInputParameters):
     return input_parameters.longitudinal_central_position - 0.5 * input_parameters.undulator_period * (input_parameters.number_of_periods + 8)  # initial Longitudinal Coordinate (set before the ID)
 
 def _is_canted_undulator(input_parameters: HybridUndulatorInputParameters):
@@ -606,42 +589,56 @@ def __create_electron_beam(input_parameters: HybridUndulatorInputParameters,
     # ***********Electron Beam
     elecBeam = SRWLPartBeam()
 
-    electron_beam_size_h = input_parameters.electron_beam_size_h if use_nominal else \
-        numpy.sqrt(input_parameters.electron_beam_size_h ** 2 + (numpy.abs(input_parameters.longitudinal_central_position + position) * numpy.tan(input_parameters.electron_beam_divergence_h)) ** 2)
-    electron_beam_size_v = input_parameters.electron_beam_size_v if use_nominal else \
-        numpy.sqrt(input_parameters.electron_beam_size_v ** 2 + (numpy.abs(input_parameters.longitudinal_central_position + position) * numpy.tan(input_parameters.electron_beam_divergence_v)) ** 2)
+    electron_beam: ElectronBeam = input_parameters.electron_beam
+    sigma_x, sigmap_x, sigma_y, sigmap_y = electron_beam.get_sigmas_all(dispersion=True)
+
+    sigma_x = sigma_x if use_nominal else numpy.sqrt(sigma_x ** 2 + (numpy.abs(input_parameters.longitudinal_central_position + position) * numpy.tan(sigmap_x)) ** 2)
+    sigma_y = sigma_y if use_nominal else numpy.sqrt(sigma_y ** 2 + (numpy.abs(input_parameters.longitudinal_central_position + position) * numpy.tan(sigmap_y)) ** 2)
 
     if input_parameters.type_of_initialization == 0:  # zero
         output_parameters.moment_x  = 0.0
         output_parameters.moment_y  = 0.0
-        output_parameters.moment_z  = __get_default_initial_z(input_parameters)
+        output_parameters.moment_z  = _get_default_initial_z(input_parameters)
         output_parameters.moment_xp = 0.0
         output_parameters.moment_yp = 0.0
     elif input_parameters.type_of_initialization == 2:  # sampled
-        output_parameters.moment_x  = numpy.random.normal(0.0, electron_beam_size_h)
-        output_parameters.moment_y  = numpy.random.normal(0.0, electron_beam_size_v)
-        output_parameters.moment_z  = __get_default_initial_z(input_parameters)
-        output_parameters.moment_xp = numpy.random.normal(0.0, input_parameters.electron_beam_divergence_h)
-        output_parameters.moment_yp = numpy.random.normal(0.0, input_parameters.electron_beam_divergence_v)
+        output_parameters.moment_x  = numpy.random.normal(0.0, sigma_x)
+        output_parameters.moment_y  = numpy.random.normal(0.0, sigma_y)
+        output_parameters.moment_z  = _get_default_initial_z(input_parameters)
+        output_parameters.moment_xp = numpy.random.normal(0.0, sigmap_x)
+        output_parameters.moment_yp = numpy.random.normal(0.0, sigmap_y)
 
     elecBeam.partStatMom1.x  = output_parameters.moment_x
     elecBeam.partStatMom1.y  = output_parameters.moment_y
     elecBeam.partStatMom1.z  = output_parameters.moment_z
     elecBeam.partStatMom1.xp = output_parameters.moment_xp
     elecBeam.partStatMom1.yp = output_parameters.moment_yp
-    elecBeam.partStatMom1.gamma = __gamma(input_parameters)
+    elecBeam.partStatMom1.gamma = _gamma(input_parameters)
 
     elecBeam.Iavg = input_parameters.ring_current  # Average Current [A]
 
     # 2nd order statistical moments
-    elecBeam.arStatMom2[0] = 0 if distribution_type == Distribution.DIVERGENCE else (electron_beam_size_h) ** 2  # <(x-x0)^2>
-    elecBeam.arStatMom2[1] = 0
-    elecBeam.arStatMom2[2] = (input_parameters.electron_beam_divergence_h) ** 2  # <(x'-x'0)^2>
-    elecBeam.arStatMom2[3] = 0 if distribution_type == Distribution.DIVERGENCE else (electron_beam_size_v) ** 2  # <(y-y0)^2>
-    elecBeam.arStatMom2[4] = 0
-    elecBeam.arStatMom2[5] = (input_parameters.electron_beam_divergence_v) ** 2  # <(y'-y'0)^2>
+    if distribution_type == Distribution.DIVERGENCE:
+        _, sigmap_x, _, sigmap_y = electron_beam.get_sigmas_all(dispersion=False)
+
+        elecBeam.arStatMom2[0] = 0
+        elecBeam.arStatMom2[1] = 0
+        elecBeam.arStatMom2[2] = sigmap_x ** 2
+        elecBeam.arStatMom2[3] = 0
+        elecBeam.arStatMom2[4] = 0
+        elecBeam.arStatMom2[5] = sigmap_y ** 2
+    else:
+        moment_xx, moment_xxp, moment_xpxp, moment_yy, moment_yyp, moment_ypyp = electron_beam.get_moments_all(dispersion=True)
+
+        elecBeam.arStatMom2[0] = moment_xx  # <(x-x0)^2>
+        elecBeam.arStatMom2[1] = moment_xxp
+        elecBeam.arStatMom2[2] = moment_xpxp
+        elecBeam.arStatMom2[3] = moment_yy
+        elecBeam.arStatMom2[4] = moment_yyp
+        elecBeam.arStatMom2[5] = moment_ypyp
+
     # energy spread
-    elecBeam.arStatMom2[10] = (input_parameters.electron_energy_spread) ** 2  # <(E-E0)^2>/E0^2
+    elecBeam.arStatMom2[10] = (electron_beam._energy_spread) ** 2  # <(E-E0)^2>/E0^2
 
     return elecBeam
 
@@ -653,7 +650,7 @@ def __create_initial_wavefront_mesh(input_parameters: HybridUndulatorInputParame
     source_dimension_wf_h_slit_points, \
     source_dimension_wf_h_slit_gap, \
     source_dimension_wf_v_slit_points, \
-    source_dimension_wf_v_slit_gap = __get_source_slit_data(input_parameters, direction="b")
+    source_dimension_wf_v_slit_gap = _get_source_slit_data(input_parameters, direction="b")
 
     wfr.allocate(1, source_dimension_wf_h_slit_points, source_dimension_wf_v_slit_points)  # Numbers of points vs Photon Energy, Horizontal and Vertical Positions
     wfr.mesh.zStart = input_parameters.source_dimension_wf_distance + input_parameters.longitudinal_central_position  # Longitudinal Position [m] from Center of Straight Section at which SR has to be calculated
@@ -863,7 +860,7 @@ def __calculate_waist_position(input_parameters: HybridUndulatorInputParameters,
 
                 input_parameters.waist_position_auto_h, input_parameters.waist_position_auto_v = __calculate_automatic_waste_position(input_parameters, output_parameters, energy)
 
-                __set_which_waist(input_parameters)
+                _set_which_waist(input_parameters)
 
                 output_parameters.waist_position = input_parameters.waist_position_auto
 
