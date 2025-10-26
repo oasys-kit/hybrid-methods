@@ -58,6 +58,7 @@ from srxraylib.util.random_distributions import Distribution2D, Grid2D, distribu
 from srxraylib.util.custom_distribution import CustomDistribution
 
 from syned.storage_ring.electron_beam import ElectronBeam
+from syned.storage_ring.magnetic_structures.undulator import Undulator
 
 import scipy.constants as codata
 
@@ -94,6 +95,7 @@ class DefaultHybridUndulatorListener(HybridUndulatorListener):
 class HybridUndulatorInputParameters:
     def __init__(self,
                  electron_beam: ElectronBeam                                 = ElectronBeam(),
+                 magnetic_structure: Undulator                               = Undulator(),
                  number_of_rays                                              = 5000,
                  seed                                                        = 6775431,
                  use_harmonic                                                = 0,
@@ -101,13 +103,6 @@ class HybridUndulatorInputParameters:
                  energy                                                      = 10000.0,
                  energy_to                                                   = 10100.0,
                  energy_points                                               = 10,
-                 number_of_periods                                           = 184,
-                 undulator_period                                            = 0.025,
-                 Kv                                                          = 0.857,
-                 Kh                                                          = 0,
-                 Bh                                                          = 0.0,
-                 Bv                                                          = 1.5,
-                 magnetic_field_from                                         = 0,
                  initial_phase_vertical                                      = 0.0,
                  initial_phase_horizontal                                    = 0.0,
                  symmetry_vs_longitudinal_position_vertical                  = 1,
@@ -166,6 +161,7 @@ class HybridUndulatorInputParameters:
                  power_density                                               = None,
                  ):
         self.electron_beam                                               = electron_beam
+        self.magnetic_structure                                          = magnetic_structure
         self.number_of_rays                                              = number_of_rays
         self.seed                                                        = seed
         self.use_harmonic                                                = use_harmonic
@@ -173,13 +169,6 @@ class HybridUndulatorInputParameters:
         self.energy                                                      = energy
         self.energy_to                                                   = energy_to
         self.energy_points                                               = energy_points
-        self.number_of_periods                                           = number_of_periods
-        self.undulator_period                                            = undulator_period
-        self.Kv                                                          = Kv
-        self.Kh                                                          = Kh
-        self.Bh                                                          = Bh
-        self.Bv                                                          = Bv
-        self.magnetic_field_from                                         = magnetic_field_from
         self.initial_phase_vertical                                      = initial_phase_vertical
         self.initial_phase_horizontal                                    = initial_phase_horizontal
         self.symmetry_vs_longitudinal_position_vertical                  = symmetry_vs_longitudinal_position_vertical
@@ -315,7 +304,6 @@ class HybridUndulatorCalculator:
 
         return output_beam
 
-
     # ABSTRACT METHODS ###############################################
     #
     def _generate_initial_beam(self): raise NotImplementedError
@@ -324,32 +312,6 @@ class HybridUndulatorCalculator:
     def _retrace_output_beam(self, output_beam: Any, distance: float): raise NotImplementedError
     #
     # ###############################################################
-    
-    ''' -> to the widget
-    def __check_fields(widget):
-    widget.number_of_rays = congruence.checkPositiveNumber(widget.number_of_rays, "Number of rays")
-    widget.seed = congruence.checkPositiveNumber(widget.seed, "Seed")
-
-    if widget.use_harmonic == 0:
-        if widget.distribution_source != 0: raise Exception("Harmonic Energy can be computed only for explicit SRW Calculation")
-
-        widget.harmonic_number = congruence.checkStrictlyPositiveNumber(widget.harmonic_number, "Harmonic Number")
-    elif widget.use_harmonic == 2:
-        if widget.distribution_source != 0: raise Exception("Energy Range can be computed only for explicit SRW Calculation")
-
-        widget.energy = congruence.checkStrictlyPositiveNumber(widget.energy, "Photon Energy From")
-        widget.energy_to = congruence.checkStrictlyPositiveNumber(widget.energy_to, "Photon Energy To")
-        widget.energy_points = congruence.checkStrictlyPositiveNumber(widget.energy_points, "Nr. Energy Values")
-        congruence.checkGreaterThan(widget.energy_to, widget.energy, "Photon Energy To", "Photon Energy From")
-    else:
-        widget.energy = congruence.checkStrictlyPositiveNumber(widget.energy, "Photon Energy")
-
-    if widget.optimize_source > 0:
-        widget.max_number_of_rejected_rays = congruence.checkPositiveNumber(widget.max_number_of_rejected_rays,
-                                                                            "Max number of rejected rays")
-        congruence.checkFile(widget.optimize_file_name)
-    '''
-    
     
     def __apply_undulator_distributions_calculation(self, output_beam, do_cumulated_calculations):
         input_parameters: HybridUndulatorInputParameters   = self.__input_parameters
@@ -412,7 +374,6 @@ class HybridUndulatorCalculator:
                 rays[:, 10] = self._get_k_from_energy(numpy.random.uniform(energy, energy + delta_e, size=len(rays)))
 
                 listener.receive_messages([f"Applying new Spatial/Angular Distribution for energy: {energy}"], data={})
-                
 
                 _generate_user_defined_distribution_from_srw(rays=rays,
                                                               coord_x=x_array[i],
@@ -442,7 +403,8 @@ class HybridUndulatorCalculator:
         else:
             integrated_flux = None
 
-            energy = input_parameters.energy if input_parameters.use_harmonic == 1 else _resonance_energy(input_parameters, 
+            energy = input_parameters.energy if input_parameters.use_harmonic == 1 else _resonance_energy(input_parameters.electron_beam,
+                                                                                                          input_parameters.magnetic_structure,
                                                                                                           harmonic=input_parameters.harmonic_number)
 
             if input_parameters.distribution_source == 0:
@@ -492,15 +454,14 @@ class HybridUndulatorCalculator:
                                                          kind_of_sampler=input_parameters.kind_of_sampler,
                                                          seed=time.time() if input_parameters.seed == 0 else input_parameters.seed + 2)
 
-        if input_parameters.distribution_source == 0 and _is_canted_undulator(input_parameters) and input_parameters.waist_position != 0.0:
+        if input_parameters.distribution_source == 0 and _is_canted_undulator(input_parameters.longitudinal_central_position) and input_parameters.waist_position != 0.0:
             self._retrace_output_beam(output_beam, -input_parameters.waist_position)
             
         return total_power
 
 ####################################################################################
-# SRW CALCULATION
+# AUXILIARY METHODS
 ####################################################################################
-
 
 def _get_source_slit_data(input_parameters: HybridUndulatorInputParameters, direction="b"):
     if input_parameters.auto_expand == 1:
@@ -529,43 +490,43 @@ def _set_which_waist(input_parameters: HybridUndulatorInputParameters):
     else:  # middle point
         input_parameters.waist_position_auto = round(0.5 * (input_parameters.waist_position_auto_h + input_parameters.waist_position_auto_v), 4)
 
-def _gamma(input_parameters: HybridUndulatorInputParameters):
-    return 1e9 * input_parameters.electron_beam._energy_in_GeV / (codata.m_e * codata.c ** 2 / codata.e)
+def _gamma(electron_beam: ElectronBeam):
+    return 1e9 * electron_beam._energy_in_GeV / (codata.m_e * codata.c ** 2 / codata.e)
 
-def _resonance_energy(input_parameters: HybridUndulatorInputParameters, theta_x=0.0, theta_z=0.0, harmonic=1):
-    g = _gamma(input_parameters)
-
-    wavelength = ((input_parameters.undulator_period / (2.0 * g ** 2)) *
-                  (1 + input_parameters.Kv ** 2 / 2.0 + input_parameters.Kh ** 2 / 2.0 +
-                   g ** 2 * (theta_x ** 2 + theta_z ** 2))) / harmonic
+def _resonance_energy(electron_beam: ElectronBeam, magnetic_structure: Undulator, theta_x=0.0, theta_z=0.0, harmonic=1):
+    gamma      = _gamma(electron_beam)
+    wavelength = ((magnetic_structure.period_length() / (2.0 * gamma ** 2)) *
+                  (1 + magnetic_structure.K_vertical() ** 2 / 2.0 + magnetic_structure.K_horizontal() ** 2 / 2.0 +
+                   gamma ** 2 * (theta_x ** 2 + theta_z ** 2))) / harmonic
 
     return m2ev / wavelength
 
-def _get_default_initial_z(input_parameters: HybridUndulatorInputParameters):
-    return input_parameters.longitudinal_central_position - 0.5 * input_parameters.undulator_period * (input_parameters.number_of_periods + 8)  # initial Longitudinal Coordinate (set before the ID)
+def _get_default_initial_z(magnetic_structure: Undulator, longitudinal_central_position: float):
+    return longitudinal_central_position - 0.5 * magnetic_structure.period_length() * (magnetic_structure.number_of_periods() + 8)  # initial Longitudinal Coordinate (set before the ID)
 
-def _is_canted_undulator(input_parameters: HybridUndulatorInputParameters):
-    return input_parameters.longitudinal_central_position != 0.0
+def _is_canted_undulator(longitudinal_central_position: float):
+    return longitudinal_central_position != 0.0
 
-def __get_minimum_propagation_distance(input_parameters: HybridUndulatorInputParameters):
-    return round(__get_source_length(input_parameters) * 1.01, 6)
+def _magnetic_field_from_K(magnetic_structure: Undulator):
+    return magnetic_structure.magnetic_field_vertical(), magnetic_structure.magnetic_field_horizontal()
 
-def __get_source_length(input_parameters: HybridUndulatorInputParameters):
-    return input_parameters.undulator_period * input_parameters.number_of_periods
+def _K_from_magnetic_field(Bh, Bv, magnetic_structure: Undulator = None):
+    if magnetic_structure is None: magnetic_structure = Undulator()
 
-def __magnetic_field_from_K(input_parameters: HybridUndulatorInputParameters):
-    Bv = input_parameters.Kv * 2 * pi * codata.m_e * codata.c / (codata.e * input_parameters.undulator_period)
-    Bh = input_parameters.Kh * 2 * pi * codata.m_e * codata.c / (codata.e * input_parameters.undulator_period)
+    magnetic_structure.set_K_vertical_from_magnetic_field(Bv)
+    magnetic_structure.set_K_horizontal_from_magnetic_field(Bh)
 
-    return Bv, Bh
+    return magnetic_structure.K_vertical(), magnetic_structure.K_horizontal()
+
+####################################################################################
+# SRW CALCULATION
+####################################################################################
 
 def __create_undulator(input_parameters: HybridUndulatorInputParameters, no_shift=False):
     # ***********Undulator
-    if input_parameters.magnetic_field_from == 0:
-        By, Bx = __magnetic_field_from_K(input_parameters)  # Peak Vertical field [T]
-    else:
-        By = input_parameters.Bv
-        Bx = input_parameters.Bh
+    magnetic_structure = input_parameters.magnetic_structure
+
+    By, Bx = _magnetic_field_from_K(magnetic_structure)  # Peak Vertical field [T]
 
     symmetry_vs_longitudinal_position_horizontal = 1 if input_parameters.symmetry_vs_longitudinal_position_horizontal == 0 else -1
     symmetry_vs_longitudinal_position_vertical = 1 if input_parameters.symmetry_vs_longitudinal_position_vertical == 0 else -1
@@ -576,8 +537,8 @@ def __create_undulator(input_parameters: HybridUndulatorInputParameters, no_shif
                                                _B=By,
                                                _ph=input_parameters.initial_phase_vertical,
                                                _a=1)],
-                          _per=input_parameters.undulator_period,
-                          _nPer=int(input_parameters.number_of_periods))  # Planar Undulator
+                          _per=magnetic_structure.period_length(),
+                          _nPer=int(magnetic_structure.number_of_periods()))  # Planar Undulator
     else:
         und = SRWLMagFldU(_arHarm=[SRWLMagFldH(_n=1,
                                                _h_or_v='h',
@@ -591,8 +552,8 @@ def __create_undulator(input_parameters: HybridUndulatorInputParameters, no_shif
                                                _ph=input_parameters.initial_phase_vertical,
                                                _s=symmetry_vs_longitudinal_position_vertical,
                                                _a=1)],
-                          _per=input_parameters.undulator_period,
-                          _nPer=int(input_parameters.number_of_periods))  # Planar Undulator
+                          _per=magnetic_structure.period_length(),
+                          _nPer=int(magnetic_structure.number_of_periods()))  # Planar Undulator
 
     if no_shift:
         magFldCnt = SRWLMagFldC(_arMagFld=[und],
@@ -624,13 +585,13 @@ def __create_electron_beam(input_parameters: HybridUndulatorInputParameters,
     if input_parameters.type_of_initialization == 0:  # zero
         output_parameters.moment_x  = 0.0
         output_parameters.moment_y  = 0.0
-        output_parameters.moment_z  = _get_default_initial_z(input_parameters)
+        output_parameters.moment_z  = _get_default_initial_z(input_parameters.magnetic_structure, input_parameters.longitudinal_central_position)
         output_parameters.moment_xp = 0.0
         output_parameters.moment_yp = 0.0
     elif input_parameters.type_of_initialization == 2:  # sampled
         output_parameters.moment_x  = numpy.random.normal(0.0, sigma_x)
         output_parameters.moment_y  = numpy.random.normal(0.0, sigma_y)
-        output_parameters.moment_z  = _get_default_initial_z(input_parameters)
+        output_parameters.moment_z  = _get_default_initial_z(input_parameters.magnetic_structure, input_parameters.longitudinal_central_position)
         output_parameters.moment_xp = numpy.random.normal(0.0, sigmap_x)
         output_parameters.moment_yp = numpy.random.normal(0.0, sigmap_y)
 
@@ -639,7 +600,7 @@ def __create_electron_beam(input_parameters: HybridUndulatorInputParameters,
     elecBeam.partStatMom1.z  = output_parameters.moment_z
     elecBeam.partStatMom1.xp = output_parameters.moment_xp
     elecBeam.partStatMom1.yp = output_parameters.moment_yp
-    elecBeam.partStatMom1.gamma = _gamma(input_parameters)
+    elecBeam.partStatMom1.gamma = _gamma(input_parameters.electron_beam)
 
     elecBeam.Iavg = input_parameters.electron_beam._current  # Average Current [A]
 
@@ -664,7 +625,7 @@ def __create_electron_beam(input_parameters: HybridUndulatorInputParameters,
         elecBeam.arStatMom2[5] = moment_ypyp
 
     # energy spread
-    elecBeam.arStatMom2[10] = (electron_beam._energy_spread) ** 2  # <(E-E0)^2>/E0^2
+    elecBeam.arStatMom2[10] = electron_beam._energy_spread ** 2  # <(E-E0)^2>/E0^2
 
     return elecBeam
 
@@ -697,10 +658,12 @@ def __get_calculation_precision_settings(input_parameters: HybridUndulatorInputP
     # ***********Precision Parameters for SR calculation
     meth = 1  # SR calculation method: 0- "manual", 1- "auto-undulator", 2- "auto-wiggler"
     relPrec = 0.01  # relative precision
+    magnetic_structure = input_parameters.magnetic_structure
 
-    if (input_parameters.longitudinal_central_position < 0 and not no_shift):
-        zStartInteg = input_parameters.longitudinal_central_position - ((0.5 * input_parameters.number_of_periods + 8) * input_parameters.undulator_period)  # longitudinal position to start integration (effective if < zEndInteg)
-        zEndInteg = input_parameters.longitudinal_central_position + ((0.5 * input_parameters.number_of_periods + 8) * input_parameters.undulator_period)  # longitudinal position to finish integration (effective if > zStartInteg)
+
+    if input_parameters.longitudinal_central_position < 0 and not no_shift:
+        zStartInteg = input_parameters.longitudinal_central_position - ((0.5 * magnetic_structure.number_of_periods() + 8) * magnetic_structure.period_length())  # longitudinal position to start integration (effective if < zEndInteg)
+        zEndInteg = input_parameters.longitudinal_central_position + ((0.5 * magnetic_structure.number_of_periods() + 8) * magnetic_structure.period_length())  # longitudinal position to finish integration (effective if > zStartInteg)
     else:
         zStartInteg = 0  # longitudinal position to start integration (effective if < zEndInteg)
         zEndInteg = 0  # longitudinal position to finish integration (effective if > zStartInteg)
@@ -717,7 +680,7 @@ def __calculate_automatic_waste_position(input_parameters: HybridUndulatorInputP
     magFldCnt     = __create_undulator(input_parameters, no_shift=True)
     arPrecParSpec = __get_calculation_precision_settings(input_parameters, no_shift=True)
 
-    undulator_length = input_parameters.number_of_periods * input_parameters.undulator_period
+    undulator_length = input_parameters.magnetic_structure.length()
     wavelength       = (codata.h * codata.c / codata.e) / energy
 
     gauss_sigma_ph  = numpy.sqrt(2 * wavelength * undulator_length) / (2 * numpy.pi)
@@ -801,26 +764,6 @@ def __calculate_automatic_waste_position(input_parameters: HybridUndulatorInputP
 
     return waist_position_x, waist_position_y
 
-
-
-
-    '''
-    if do_plot:
-        plot(widget, 0, positions, sizes_e_x, sizes_ph_x, sizes_ph_an_x, sizes_tot_x, waist_position_x, waist_size_x)
-        plot(widget, 1, positions, sizes_e_y, sizes_ph_y, sizes_ph_an_y, sizes_tot_y, waist_position_y, waist_size_y)
-
-        try:
-            widget.waist_figure.draw()
-        except ValueError as e:
-            if "Image size of " in str(e):
-                pass
-            else:
-                raise e
-    '''
-
-    return waist_position_x, waist_position_y
-
-
 def __create_beamline_source_dimension(input_parameters: HybridUndulatorInputParameters, back_position=0.0, waist_calculation=False):
     # ***************** Optical Elements and Propagation Parameters
 
@@ -871,12 +814,11 @@ def __transform_srw_array(output_array, mesh):
 
     return h_array, v_array, intensity_array
 
-
 def __calculate_waist_position(input_parameters: HybridUndulatorInputParameters,
                                output_parameters: HybridUndulatorOutputParameters,
                                energy):
     if input_parameters.distribution_source == 0:  # SRW calculation
-        if _is_canted_undulator(input_parameters):
+        if _is_canted_undulator(input_parameters.longitudinal_central_position):
             if input_parameters.waist_position_calculation == 0:  # None
                 input_parameters.waist_position = 0.0
             elif input_parameters.waist_position_calculation == 1:  # Automatic
@@ -907,7 +849,7 @@ def _get_integrated_flux_from_stokes(input_parameters: HybridUndulatorInputParam
     elecBeam  = __create_electron_beam(input_parameters, output_parameters, distribution_type=Distribution.POSITION, position=input_parameters.waist_position)
     wfr       = __create_initial_wavefront_mesh(input_parameters, elecBeam, energies[0])
 
-    h_max = int(2.5 * eFin / _resonance_energy(input_parameters, harmonic=1))
+    h_max = int(2.5 * eFin / _resonance_energy(input_parameters.electron_beam, input_parameters.magnetic_structure, harmonic=1))
 
     arPrecF    = [0] * 5  # for spectral flux vs photon energy
     arPrecF[0] = 1  # initial UR harmonic to take into account
@@ -975,7 +917,7 @@ def _run_SRW_calculation(input_parameters: HybridUndulatorInputParameters,
             output_parameters.cumulated_energies        = current_energy
             output_parameters.cumulated_integrated_flux = current_integrated_flux
             output_parameters.cumulated_power_density   = current_power_density
-            output_parameters.cumulated_power           = numpy.ones(1) * (current_power)
+            output_parameters.cumulated_power           = numpy.ones(1) * current_power
         else:
             output_parameters.cumulated_energies        = numpy.append(output_parameters.cumulated_energies, current_energy)
             output_parameters.cumulated_integrated_flux = numpy.append(output_parameters.cumulated_integrated_flux, current_integrated_flux)
