@@ -9,7 +9,7 @@ except AttributeError:
 
 NAME = 'shadow-hybrid-methods'
 
-VERSION = '1.0.15'
+VERSION = '1.0.17'
 ISRELEASED = True
 
 DESCRIPTION = 'Hybrid Methods, combining raytracing with wave optics'
@@ -23,16 +23,16 @@ MAINTAINER = 'Luca Rebuffi'
 MAINTAINER_EMAIL = 'lrebuffi@anl.gov'
 LICENSE = 'BSD'
 
-KEYWORDS = (
+KEYWORDS = [
     'x-ray'
     'synchrotron radiation',
     'wavefront propagation'
     'ray tracing',
     'surface metrology',
     'simulation',
-)
+]
 
-CLASSIFIERS = (
+CLASSIFIERS = [
     'Development Status :: 5 - Production/Stable',
     'Environment :: Console',
     'Environment :: Plugins',
@@ -46,7 +46,7 @@ CLASSIFIERS = (
     'Intended Audience :: Education',
     'Intended Audience :: Science/Research',
     'Intended Audience :: Developers',
-)
+]
 
 INSTALL_REQUIRES = (
     'setuptools',
@@ -68,6 +68,7 @@ PACKAGES = [
     "hybrid_methods.fresnel_zone_plate",
     "hybrid_methods.fresnel_zone_plate.simulator",
     "hybrid_methods.undulator",
+    "hybrid_methods.util",
 ]
 
 PACKAGE_DATA = {
