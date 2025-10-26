@@ -250,7 +250,20 @@ class HybridUndulatorOutputParameters:
                  cumulated_power_density   = None,
                  cumulated_power           = None,
                  initial_flux              = 0.0,
-                 total_power               = 0.0
+                 total_power               = 0.0,
+                 positions                 = None,
+                 sizes_e_x                 = None,
+                 sizes_e_y                 = None,
+                 sizes_ph_x                = None,
+                 sizes_ph_y                = None,
+                 sizes_ph_an_x             = None,
+                 sizes_ph_an_y             = None,
+                 sizes_tot_x               = None,
+                 sizes_tot_y               = None,
+                 waist_position_x          = None,
+                 waist_position_y          = None,
+                 waist_size_x              = None,
+                 waist_size_y              = None,
     ):
         self.moment_x                  = moment_x
         self.moment_y                  = moment_y
@@ -263,6 +276,19 @@ class HybridUndulatorOutputParameters:
         self.cumulated_power           = cumulated_power
         self.initial_flux              = initial_flux
         self.total_power               = total_power
+        self.positions                 = positions
+        self.sizes_e_x                 = sizes_e_x
+        self.sizes_e_y                 = sizes_e_y
+        self.sizes_ph_x                = sizes_ph_x
+        self.sizes_ph_y                = sizes_ph_y
+        self.sizes_ph_an_x             = sizes_ph_an_x
+        self.sizes_ph_an_y             = sizes_ph_an_y
+        self.sizes_tot_x               = sizes_tot_x
+        self.sizes_tot_y               = sizes_tot_y
+        self.waist_position_x          = waist_position_x
+        self.waist_position_y          = waist_position_y
+        self.waist_size_x              = waist_size_x
+        self.waist_size_y              = waist_size_y
 
 class HybridUndulatorCalculator:
 
@@ -448,26 +474,26 @@ class HybridUndulatorCalculator:
 
             listener.receive_messages(["Applying new Spatial/Angular Distribution"], data={"progress": 50})
             
-            _generate_user_defined_distribution_from_srw(rays=output_beam._beam.rays,
-                                                          coord_x=x,
-                                                          coord_z=z,
-                                                          intensity=intensity_source_dimension,
-                                                          distribution_type=Distribution.POSITION,
-                                                          kind_of_sampler=input_parameters.kind_of_sampler,
-                                                          seed=time.time() if input_parameters.seed == 0 else input_parameters.seed + 1)
+            _generate_user_defined_distribution_from_srw(rays=output_beam.rays,
+                                                         coord_x=x,
+                                                         coord_z=z,
+                                                         intensity=intensity_source_dimension,
+                                                         distribution_type=Distribution.POSITION,
+                                                         kind_of_sampler=input_parameters.kind_of_sampler,
+                                                         seed=time.time() if input_parameters.seed == 0 else input_parameters.seed + 1)
 
             listener.receive_messages([], data={"progress": 70})
 
-            _generate_user_defined_distribution_from_srw(rays=output_beam._beam.rays,
-                                                          coord_x=x_first,
-                                                          coord_z=z_first,
-                                                          intensity=intensity_angular_distribution,
-                                                          distribution_type=Distribution.DIVERGENCE,
-                                                          kind_of_sampler=input_parameters.kind_of_sampler,
-                                                          seed=time.time() if input_parameters.seed == 0 else input_parameters.seed + 2)
+            _generate_user_defined_distribution_from_srw(rays=output_beam.rays,
+                                                         coord_x=x_first,
+                                                         coord_z=z_first,
+                                                         intensity=intensity_angular_distribution,
+                                                         distribution_type=Distribution.DIVERGENCE,
+                                                         kind_of_sampler=input_parameters.kind_of_sampler,
+                                                         seed=time.time() if input_parameters.seed == 0 else input_parameters.seed + 2)
 
-        if input_parameters.distribution_source == 0 and _is_canted_undulator(input_parameters) and output_parameters.waist_position != 0.0:
-            self._retrace_output_beam(output_beam, -output_parameters.waist_position)
+        if input_parameters.distribution_source == 0 and _is_canted_undulator(input_parameters) and input_parameters.waist_position != 0.0:
+            self._retrace_output_beam(output_beam, -input_parameters.waist_position)
             
         return total_power
 
@@ -551,7 +577,7 @@ def __create_undulator(input_parameters: HybridUndulatorInputParameters, no_shif
                                                _ph=input_parameters.initial_phase_vertical,
                                                _a=1)],
                           _per=input_parameters.undulator_period,
-                          _nPer=input_parameters.number_of_periods)  # Planar Undulator
+                          _nPer=int(input_parameters.number_of_periods))  # Planar Undulator
     else:
         und = SRWLMagFldU(_arHarm=[SRWLMagFldH(_n=1,
                                                _h_or_v='h',
@@ -566,7 +592,7 @@ def __create_undulator(input_parameters: HybridUndulatorInputParameters, no_shif
                                                _s=symmetry_vs_longitudinal_position_vertical,
                                                _a=1)],
                           _per=input_parameters.undulator_period,
-                          _nPer=input_parameters.number_of_periods)  # Planar Undulator
+                          _nPer=int(input_parameters.number_of_periods))  # Planar Undulator
 
     if no_shift:
         magFldCnt = SRWLMagFldC(_arMagFld=[und],
@@ -615,7 +641,7 @@ def __create_electron_beam(input_parameters: HybridUndulatorInputParameters,
     elecBeam.partStatMom1.yp = output_parameters.moment_yp
     elecBeam.partStatMom1.gamma = _gamma(input_parameters)
 
-    elecBeam.Iavg = input_parameters.ring_current  # Average Current [A]
+    elecBeam.Iavg = input_parameters.electron_beam._current  # Average Current [A]
 
     # 2nd order statistical moments
     if distribution_type == Distribution.DIVERGENCE:
@@ -687,9 +713,7 @@ def __get_calculation_precision_settings(input_parameters: HybridUndulatorInputP
     return [meth, relPrec, zStartInteg, zEndInteg, npTraj, useTermin, sampFactNxNyForProp]
 
 
-def __calculate_automatic_waste_position(input_parameters: HybridUndulatorInputParameters,
-                                         output_parameters: HybridUndulatorOutputParameters,
-                                         energy):
+def __calculate_automatic_waste_position(input_parameters: HybridUndulatorInputParameters, output_parameters : HybridUndulatorOutputParameters, energy):
     magFldCnt     = __create_undulator(input_parameters, no_shift=True)
     arPrecParSpec = __get_calculation_precision_settings(input_parameters, no_shift=True)
 
@@ -712,8 +736,8 @@ def __calculate_automatic_waste_position(input_parameters: HybridUndulatorInputP
     for i in range(input_parameters.number_of_waist_fit_points):
         position = float(positions[i])
 
-        elecBeam    = __create_electron_beam(input_parameters, distribution_type=Distribution.POSITION, position=position, use_nominal=False)
-        elecBeam_Ph = __create_electron_beam(input_parameters, distribution_type=Distribution.POSITION, use_nominal=True)
+        elecBeam    = __create_electron_beam(input_parameters, HybridUndulatorOutputParameters(), distribution_type=Distribution.POSITION, position=position, use_nominal=False)
+        elecBeam_Ph = __create_electron_beam(input_parameters, HybridUndulatorOutputParameters(), distribution_type=Distribution.POSITION, use_nominal=True)
         wfr         = __create_initial_wavefront_mesh(input_parameters, elecBeam_Ph, energy)
         optBLSouDim = __create_beamline_source_dimension(input_parameters,
                                                          back_position=(input_parameters.source_dimension_wf_distance + input_parameters.longitudinal_central_position - position),
@@ -740,23 +764,6 @@ def __calculate_automatic_waste_position(input_parameters: HybridUndulatorInputP
         sizes_e_x[i], sizes_ph_x[i], sizes_ph_an_x[i], sizes_tot_x[i] = get_size(position, x, intensity_distribution, 1, 0)
         sizes_e_y[i], sizes_ph_y[i], sizes_ph_an_y[i], sizes_tot_y[i] = get_size(position, y, intensity_distribution, 0, 3)
 
-    ''' -> to widget
-    def plot(widget, direction, positions, sizes_e, sizes_ph, size_ph_an, sizes_tot, waist_position, waist_size):
-        widget.waist_axes[direction].clear()
-        widget.waist_axes[direction].set_title(("Horizontal" if direction == 0 else "Vertical") + " Direction\n" +
-                                               "Source size: " + str(round(waist_size * 1e6, 2)) + " " + r'$\mu$' + "m \n" +
-                                               "at " + str(round(waist_position * 1e3, 1)) + " mm from the ID center")
-
-        widget.waist_axes[direction].plot(positions * 1e3, sizes_e * 1e6, label='electron', color='g')
-        widget.waist_axes[direction].plot(positions * 1e3, sizes_ph * 1e6, label='photon', color='b')
-        widget.waist_axes[direction].plot(positions * 1e3, size_ph_an * 1e6, '--', label='photon (analytical)', color='b')
-        widget.waist_axes[direction].plot(positions * 1e3, sizes_tot * 1e6, label='total', color='r')
-        widget.waist_axes[direction].plot([waist_position * 1e3], [waist_size * 1e6], 'bo', label="waist")
-        widget.waist_axes[direction].set_xlabel("Position relative to ID center [mm]")
-        widget.waist_axes[direction].set_ylabel("Sigma [um]")
-        widget.waist_axes[direction].legend()
-    '''
-
     def get_minimum(positions, sizes):
         coeffiecients = numpy.polyfit(positions, sizes, deg=input_parameters.degree_of_waist_fit)
         p = numpy.poly1d(coeffiecients)
@@ -778,7 +785,25 @@ def __calculate_automatic_waste_position(input_parameters: HybridUndulatorInputP
     waist_position_x, waist_size_x = get_minimum(positions, sizes_tot_x)
     waist_position_y, waist_size_y = get_minimum(positions, sizes_tot_y)
 
-    # TO OUTPUT data
+    output_parameters.positions        = positions
+    output_parameters.sizes_e_x        = sizes_e_x
+    output_parameters.sizes_e_y        = sizes_e_y
+    output_parameters.sizes_ph_x       = sizes_ph_x
+    output_parameters.sizes_ph_y       = sizes_ph_y
+    output_parameters.sizes_ph_an_x    = sizes_ph_an_x
+    output_parameters.sizes_ph_an_y    = sizes_ph_an_y
+    output_parameters.sizes_tot_x      = sizes_tot_x
+    output_parameters.sizes_tot_y      = sizes_tot_y
+    output_parameters.waist_position_x = waist_position_x
+    output_parameters.waist_position_y = waist_position_y
+    output_parameters.waist_size_x     = waist_size_x
+    output_parameters.waist_size_y     = waist_size_y
+
+    return waist_position_x, waist_position_y
+
+
+
+
     '''
     if do_plot:
         plot(widget, 0, positions, sizes_e_x, sizes_ph_x, sizes_ph_an_x, sizes_tot_x, waist_position_x, waist_size_x)
@@ -848,7 +873,7 @@ def __transform_srw_array(output_array, mesh):
 
 
 def __calculate_waist_position(input_parameters: HybridUndulatorInputParameters,
-                               output_parameters : HybridUndulatorOutputParameters,
+                               output_parameters: HybridUndulatorOutputParameters,
                                energy):
     if input_parameters.distribution_source == 0:  # SRW calculation
         if _is_canted_undulator(input_parameters):
@@ -862,29 +887,29 @@ def __calculate_waist_position(input_parameters: HybridUndulatorInputParameters,
 
                 _set_which_waist(input_parameters)
 
-                output_parameters.waist_position = input_parameters.waist_position_auto
+                input_parameters.waist_position = input_parameters.waist_position_auto
 
             elif input_parameters.waist_position_calculation == 2:  # User Defined
-                output_parameters.waist_position = input_parameters.waist_position_user_defined
+                input_parameters.waist_position = input_parameters.waist_position_user_defined
         else:
-            output_parameters.waist_position = 0.0
+            input_parameters.waist_position = 0.0
     else:
-        output_parameters.waist_position = 0.0
+        input_parameters.waist_position = 0.0
 
 def _get_integrated_flux_from_stokes(input_parameters: HybridUndulatorInputParameters,
                                      output_parameters: HybridUndulatorOutputParameters,
                                      energies):
     eStart = energies[0]
-    eFin = energies[-1]
-    ne = len(energies)
+    eFin   = energies[-1]
+    ne     = len(energies)
 
     magFldCnt = __create_undulator(input_parameters)
-    elecBeam  = __create_electron_beam(input_parameters, distribution_type=Distribution.DIVERGENCE, position=output_parameters.waist_position)
+    elecBeam  = __create_electron_beam(input_parameters, output_parameters, distribution_type=Distribution.POSITION, position=input_parameters.waist_position)
     wfr       = __create_initial_wavefront_mesh(input_parameters, elecBeam, energies[0])
 
     h_max = int(2.5 * eFin / _resonance_energy(input_parameters, harmonic=1))
 
-    arPrecF = [0] * 5  # for spectral flux vs photon energy
+    arPrecF    = [0] * 5  # for spectral flux vs photon energy
     arPrecF[0] = 1  # initial UR harmonic to take into account
     arPrecF[1] = h_max  # final UR harmonic to take into account
     arPrecF[2] = 1.5  # longitudinal integration precision parameter
@@ -895,11 +920,11 @@ def _get_integrated_flux_from_stokes(input_parameters: HybridUndulatorInputParam
     stkF.allocate(ne, 1, 1)  # numbers of points vs photon energy, horizontal and vertical positions
     stkF.mesh.zStart = input_parameters.source_dimension_wf_distance  # longitudinal position [m] at which UR has to be calculated
     stkF.mesh.eStart = eStart  # initial photon energy [eV]
-    stkF.mesh.eFin = eFin  # final photon energy [eV]
+    stkF.mesh.eFin   = eFin  # final photon energy [eV]
     stkF.mesh.xStart = wfr.mesh.xStart  # initial horizontal position [m]
-    stkF.mesh.xFin = wfr.mesh.xFin  # final horizontal position [m]
+    stkF.mesh.xFin   = wfr.mesh.xFin  # final horizontal position [m]
     stkF.mesh.yStart = wfr.mesh.yStart  # initial vertical position [m]
-    stkF.mesh.yFin = wfr.mesh.yFin  # final vertical position [m]
+    stkF.mesh.yFin   = wfr.mesh.yFin  # final vertical position [m]
 
     srwl.CalcStokesUR(stkF, elecBeam, magFldCnt.arMagFld[0], arPrecF)
 
@@ -912,7 +937,7 @@ def _run_SRW_calculation(input_parameters: HybridUndulatorInputParameters,
     __calculate_waist_position(input_parameters, output_parameters, energy)
 
     magFldCnt = __create_undulator(input_parameters)
-    elecBeam  = __create_electron_beam(input_parameters, distribution_type=Distribution.DIVERGENCE, position=output_parameters.waist_position)
+    elecBeam  = __create_electron_beam(input_parameters, output_parameters, distribution_type=Distribution.DIVERGENCE, position=input_parameters.waist_position)
     wfr       = __create_initial_wavefront_mesh(input_parameters, elecBeam, energy)
 
     arPrecParSpec = __get_calculation_precision_settings(input_parameters)
@@ -947,17 +972,17 @@ def _run_SRW_calculation(input_parameters: HybridUndulatorInputParameters,
         current_power = total_power
 
         if output_parameters.cumulated_energies is None:
-            output_parameters.cumulated_energies = current_energy
+            output_parameters.cumulated_energies        = current_energy
             output_parameters.cumulated_integrated_flux = current_integrated_flux
-            output_parameters.cumulated_power_density = current_power_density
-            output_parameters.cumulated_power = numpy.ones(1) * (current_power)
+            output_parameters.cumulated_power_density   = current_power_density
+            output_parameters.cumulated_power           = numpy.ones(1) * (current_power)
         else:
-            output_parameters.cumulated_energies = numpy.append(output_parameters.cumulated_energies, current_energy)
+            output_parameters.cumulated_energies        = numpy.append(output_parameters.cumulated_energies, current_energy)
             output_parameters.cumulated_integrated_flux = numpy.append(output_parameters.cumulated_integrated_flux, current_integrated_flux)
-            output_parameters.cumulated_power_density += current_power_density
-            output_parameters.cumulated_power = numpy.append(output_parameters.cumulated_power, numpy.ones(1) * (output_parameters.cumulated_power[-1] + current_power))
+            output_parameters.cumulated_power_density  += current_power_density
+            output_parameters.cumulated_power           = numpy.append(output_parameters.cumulated_power, numpy.ones(1) * (output_parameters.cumulated_power[-1] + current_power))
 
-    distance = input_parameters.source_dimension_wf_distance - output_parameters.waist_position  # relative to the center of the undulator
+    distance = input_parameters.source_dimension_wf_distance - input_parameters.waist_position  # relative to the center of the undulator
 
     x_first = numpy.arctan(x / distance)
     z_first = numpy.arctan(z / distance)
@@ -971,9 +996,9 @@ def _run_SRW_calculation(input_parameters: HybridUndulatorInputParameters,
     if input_parameters.save_srw_result == 1: srwl_uti_save_intens_ascii(arI, wfrAngDist.mesh, input_parameters.angular_distribution_srw_file)
 
     # for source dimension, back propagation to the source position
-    elecBeam    = __create_electron_beam(input_parameters, distribution_type=Distribution.POSITION, position=output_parameters.waist_position)
+    elecBeam    = __create_electron_beam(input_parameters, output_parameters, distribution_type=Distribution.POSITION, position=input_parameters.waist_position)
     wfr         = __create_initial_wavefront_mesh(input_parameters, elecBeam, energy)
-    optBLSouDim = __create_beamline_source_dimension(input_parameters, back_position=(input_parameters.source_dimension_wf_distance - output_parameters.waist_position))
+    optBLSouDim = __create_beamline_source_dimension(input_parameters, back_position=(input_parameters.source_dimension_wf_distance - input_parameters.waist_position))
 
     srwl.CalcElecFieldSR(wfr, 0, magFldCnt, arPrecParSpec)
     srwl.PropagElecField(wfr, optBLSouDim)
