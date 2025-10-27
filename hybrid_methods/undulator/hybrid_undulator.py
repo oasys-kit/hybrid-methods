@@ -44,7 +44,7 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         #
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # ----------------------------------------------------------------------- #
-from typing import List, Any
+from typing import Any
 import sys
 import numpy
 import time
@@ -77,19 +77,14 @@ if SRW_INSTALLED:
     )
 
 class HybridUndulatorListener:
-    def signal_event(self, event: str, data: Any): raise NotImplementedError()
-    def receive_messages(self, messages: List[str], data: Any): raise NotImplementedError()
+    def receive_message(self, message: str, data: dict): raise NotImplementedError()
 
 
 class DefaultHybridUndulatorListener(HybridUndulatorListener):
     def __init__(self): pass
     
-    def signal_event(self, event: str, data: Any):
-        print("Received event: {}".format(event))
-        print("Received data: {}".format(data))
-
-    def receive_messages(self, messages: List[str], data: Any):
-        print("Received messages: {}".format(messages))
+    def receive_message(self, message: str, data: dict):
+        print("Received messages: {}".format(message))
         print("Received data: {}".format(data))
 
 class HybridUndulatorInputParameters:
@@ -296,9 +291,9 @@ class HybridUndulatorCalculator:
     def run_hybrid_undulator_simulation(self, do_cumulated_calculations = False):
         self.__output_parameters = HybridUndulatorOutputParameters()
 
-        self.__listener.receive_messages(["Generating Initial Ray-Tracing beam"], data={"progress": 10})
+        self.__listener.receive_message("Generating Initial Ray-Tracing beam", data={"progress": 10})
         output_beam = self._generate_initial_beam()
-        self.__listener.receive_messages(["Starting Wave-Optics Calculations"], data={"progress": 20})
+        self.__listener.receive_message("Starting Wave-Optics Calculations", data={"progress": 20})
         total_power = self.__apply_undulator_distributions_calculation(output_beam , do_cumulated_calculations)
         self.__output_parameters.total_power = total_power
 
@@ -337,7 +332,7 @@ class HybridUndulatorCalculator:
 
             if input_parameters.use_stokes != 1: raise ValueError("multi energy calculation is possible with calculation with Stokes only")
 
-            listener.receive_messages(["Computing integrated flux from Radiation Stokes Parameters"], data={"progress":25})
+            listener.receive_message("Computing integrated flux from Radiation Stokes Parameters", data={"progress":25})
 
             flux_from_stokes = _get_integrated_flux_from_stokes(input_parameters, output_parameters, energies)
 
@@ -356,7 +351,7 @@ class HybridUndulatorCalculator:
                 last_index = min(first_index + int(nr_rays_array[i]), len(output_rays))
                 rays       = output_rays[first_index:last_index]
 
-                listener.receive_messages([f"Running SRW for energy: {energy}"], data={})
+                listener.receive_message(f"Running SRW for energy: {energy}", data={})
 
                 x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, integrated_flux, _ = _run_SRW_calculation(input_parameters,
                                                                                                                                               output_parameters,
@@ -373,7 +368,7 @@ class HybridUndulatorCalculator:
 
                 rays[:, 10] = self._get_k_from_energy(numpy.random.uniform(energy, energy + delta_e, size=len(rays)))
 
-                listener.receive_messages([f"Applying new Spatial/Angular Distribution for energy: {energy}"], data={})
+                listener.receive_message(f"Applying new Spatial/Angular Distribution for energy: {energy}", data={})
 
                 _generate_user_defined_distribution_from_srw(rays=rays,
                                                               coord_x=x_array[i],
@@ -390,7 +385,7 @@ class HybridUndulatorCalculator:
                                                               kind_of_sampler=input_parameters.kind_of_sampler,
                                                               seed=current_seed + 2)
 
-                listener.receive_messages([], data={"progress": prog_bars[i]})
+                listener.receive_message(None, data={"progress": prog_bars[i]})
                 
                 first_index = last_index
                 current_seed += 2
@@ -408,7 +403,7 @@ class HybridUndulatorCalculator:
                                                                                                           harmonic=input_parameters.harmonic_number)
 
             if input_parameters.distribution_source == 0:
-                listener.receive_messages(["Running SRW"], data={})
+                listener.receive_message("Running SRW", data={})
 
 
                 if input_parameters.use_stokes == 1: flux_from_stokes = _get_integrated_flux_from_stokes(input_parameters, output_parameters,[energy])[0]
@@ -420,12 +415,12 @@ class HybridUndulatorCalculator:
                                                                                                                                                         flux_from_stokes=flux_from_stokes,
                                                                                                                                                         do_cumulated_calculations=do_cumulated_calculations)
             elif input_parameters.distribution_source == 1:
-                listener.receive_messages(["Loading SRW files"], data={})
+                listener.receive_message("Loading SRW files", data={})
 
                 x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution = _load_SRW_files(input_parameters)
                 total_power = None
             elif input_parameters.distribution_source == 2:  # ASCII FILES
-                listener.receive_messages(["Loading Ascii files"], data={})
+                listener.receive_message("Loading Ascii files", data={})
 
                 x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution = _load_ASCII_files(input_parameters)
                 total_power = None
@@ -434,7 +429,7 @@ class HybridUndulatorCalculator:
             
             output_parameters.initial_flux = integrated_flux
 
-            listener.receive_messages(["Applying new Spatial/Angular Distribution"], data={"progress": 50})
+            listener.receive_message("Applying new Spatial/Angular Distribution", data={"progress": 50})
             
             _generate_user_defined_distribution_from_srw(rays=output_beam.rays,
                                                          coord_x=x,
@@ -444,7 +439,7 @@ class HybridUndulatorCalculator:
                                                          kind_of_sampler=input_parameters.kind_of_sampler,
                                                          seed=time.time() if input_parameters.seed == 0 else input_parameters.seed + 1)
 
-            listener.receive_messages([], data={"progress": 70})
+            listener.receive_message(None, data={"progress": 70})
 
             _generate_user_defined_distribution_from_srw(rays=output_beam.rays,
                                                          coord_x=x_first,
