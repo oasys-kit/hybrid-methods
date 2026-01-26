@@ -9,7 +9,7 @@ except AttributeError:
 
 NAME = 'shadow-hybrid-methods'
 
-VERSION = '1.0.18'
+VERSION = '1.0.19'
 ISRELEASED = True
 
 DESCRIPTION = 'Hybrid Methods, combining raytracing with wave optics'
@@ -37,10 +37,6 @@ CLASSIFIERS = [
     'Environment :: Console',
     'Environment :: Plugins',
     'Programming Language :: Python :: 3',
-    'License :: OSI Approved :: '
-    'GNU General Public License v3 or later (GPLv3+)',
-    'Operating System :: POSIX',
-    'Operating System :: Microsoft :: Windows',
     'Topic :: Scientific/Engineering :: Visualization',
     'Topic :: Software Development :: Libraries :: Python Modules',
     'Intended Audience :: Education',
@@ -56,10 +52,6 @@ INSTALL_REQUIRES = (
     'syned',
     'wofry',
     'wofryimpl>=1.0.26',
-)
-
-SETUP_REQUIRES = (
-    'setuptools',
 )
 
 PACKAGES = [
@@ -96,7 +88,6 @@ def setup_package():
         zip_safe=True,  # the package can run out of an .egg file
         include_package_data=True,
         install_requires=INSTALL_REQUIRES,
-        setup_requires=SETUP_REQUIRES,
     )
 
 if __name__ == '__main__':

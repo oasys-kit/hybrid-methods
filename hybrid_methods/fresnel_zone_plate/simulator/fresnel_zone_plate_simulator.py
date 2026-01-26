@@ -667,7 +667,7 @@ class FresnelZonePlateSimulator(object):
 
         I_dens_0 = numpy.zeros(self.__n_points)
         I_dens_0[numpy.where(profile_h != 0.j)] = 1.0
-        I_0 = numpy.trapz(numpy.multiply(r, I_dens_0), r)
-        I = numpy.trapz(numpy.multiply(r[:n_integration_points + 1], map_d[self.__n_points - 1:(self.__n_points + n_integration_points), map_index]), r[:n_integration_points + 1])
+        I_0 = numpy.trapezoid(numpy.multiply(r, I_dens_0), r)
+        I = numpy.trapezoid(numpy.multiply(r[:n_integration_points + 1], map_d[self.__n_points - 1:(self.__n_points + n_integration_points), map_index]), r[:n_integration_points + 1])
 
         return numpy.divide(I, I_0)
