@@ -1343,7 +1343,8 @@ class AbstractHybridScreen():
 
         fft_scale = numpy.fft.fftfreq(data.size()) / data.delta()
 
-        waRMS = numpy.trapezoid(waPSD, fft_scale[0:int(len(wfftcol) / 2)])  # uniformed with IGOR: Same kind of integration, with automatic range assignement
+        try:    waRMS = numpy.trapezoid(waPSD, fft_scale[0:int(len(wfftcol) / 2)])  # uniformed with IGOR: Same kind of integration, with automatic range assignement
+        except: waRMS = numpy.trapz(waPSD, fft_scale[0:int(len(wfftcol) / 2)])  # uniformed with IGOR: Same kind of integration, with automatic range assignement
 
         return numpy.sqrt(waRMS)
 
