@@ -254,6 +254,7 @@ class HybridInputParameters():
                  n_peaks : int = 20,
                  fft_n_pts : int = 1e6,
                  analyze_geometry : bool = True,
+                 analyze_displacements: bool = True,
                  random_seed : int = 0,
                  **kwargs):
         self.__listener                        = listener
@@ -268,6 +269,7 @@ class HybridInputParameters():
         self.__n_peaks                         = n_peaks
         self.__fft_n_pts                       = fft_n_pts
         self.__analyze_geometry                = analyze_geometry
+        self.__analyze_displacements           = analyze_displacements
         self.__random_seed                     = random_seed
         self.__additional_parameters           = kwargs
 
@@ -295,6 +297,8 @@ class HybridInputParameters():
     def fft_n_pts(self) -> int: return self.__fft_n_pts
     @property
     def analyze_geometry(self) -> bool: return self.__analyze_geometry
+    @property
+    def analyze_displacements(self) -> bool: return self.__analyze_displacements
     @property
     def random_seed(self) -> int: return self.__random_seed
 
@@ -1988,6 +1992,7 @@ class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
                                                    n_peaks=input_parameters.n_peaks,
                                                    fft_n_pts=input_parameters.fft_n_pts,
                                                    analyze_geometry=input_parameters.analyze_geometry,
+                                                   analyze_displacements=input_parameters.analyze_displacements,
                                                    random_seed=input_parameters.random_seed,  # TODO: add field
                                                    **input_parameters.additional_parameters)
 
@@ -2001,6 +2006,7 @@ class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
                                                    n_peaks=input_parameters.n_peaks,
                                                    fft_n_pts=input_parameters.fft_n_pts,
                                                    analyze_geometry=input_parameters.analyze_geometry,
+                                                   analyze_displacements=input_parameters.analyze_displacements,
                                                    random_seed=input_parameters.random_seed,  # TODO: add field
                                                    **input_parameters.additional_parameters)
 
