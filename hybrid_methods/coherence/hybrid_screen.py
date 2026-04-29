@@ -1574,8 +1574,8 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
 
     def _add_specific_2D_phase_shift(self, wavefront: GenericWavefront2D, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters):
         total_phase_shift          = calculation_parameters.get("2D_phase_shift")
-        incidence_angle_function_z = calculation_parameters.get("incidence_angle_function_z"),
-        footprint_function_z       = calculation_parameters.get("footprint_function_z"),
+        incidence_angle_function_z = calculation_parameters.get("incidence_angle_function_z")
+        footprint_function_z       = calculation_parameters.get("footprint_function_z")
 
         if not total_phase_shift is None:
             phase_shifts = numpy.zeros(wavefront.size())
