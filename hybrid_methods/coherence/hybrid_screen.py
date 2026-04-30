@@ -1494,12 +1494,10 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
         sagittal_phase_shift, scale_factor = super(AbstractMirrorOrGratingSizeHybridScreen, self)._initialize_sagittal_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
 
         has_roll_displacement, rotation_angle = self._has_roll_displacement(input_parameters, calculation_parameters)
-
         if has_roll_displacement:
             sag_min, sag_max, _, _ = self._get_optical_element_spatial_limits(input_parameters, calculation_parameters)
-
             sagittal_phase_shift = ScaledArray.initialize_from_range(numpy.zeros(3), sag_min, sag_max)
-            sagittal_phase_shift.set_values(sagittal_phase_shift.get_values() + sagittal_phase_shift.get_abscissas()*numpy.sin(-rotation_angle))
+            sagittal_phase_shift.set_values(sagittal_phase_shift.get_values() + sagittal_phase_shift.get_abscissas()*numpy.sin(rotation_angle))
 
         return sagittal_phase_shift, scale_factor
 
@@ -1693,7 +1691,7 @@ class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSi
 
         has_roll_displacement, rotation_angle = self._has_roll_displacement(input_parameters, calculation_parameters)
         if has_roll_displacement:
-            sagittal_phase_shift.set_values(sagittal_phase_shift.get_values() + sagittal_phase_shift.get_abscissas() * numpy.sin(-rotation_angle))
+            sagittal_phase_shift.set_values(sagittal_phase_shift.get_values() + sagittal_phase_shift.get_abscissas() * numpy.sin(rotation_angle))
 
         rms_slope = AbstractHybridScreen._get_rms_slope_error_from_height(sagittal_phase_shift)
 
