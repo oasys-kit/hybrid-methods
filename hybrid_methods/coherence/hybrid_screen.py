@@ -49,6 +49,7 @@ import numpy
 import copy
 from abc import abstractmethod
 
+import numpy as np
 from scipy.interpolate import RectBivariateSpline
 
 from wofry.propagator.propagator import PropagationManager, PropagationParameters, PropagationElements
@@ -254,24 +255,24 @@ class HybridInputParameters():
                  n_peaks : int = 20,
                  fft_n_pts : int = 1e6,
                  analyze_geometry : bool = True,
-                 analyze_displacements: bool = True,
+                 treat_displacement_as_phase_shift: bool = True,
                  random_seed : int = 0,
                  **kwargs):
-        self.__listener                        = listener
-        self.__beam                            = beam
-        self.__original_beam                   = beam.duplicate()
-        self.__optical_element                 = optical_element
-        self.__original_optical_element        = optical_element.duplicate()
-        self.__diffraction_plane               = diffraction_plane
-        self.__propagation_type                = propagation_type
-        self.__n_bins_x                        = n_bins_x
-        self.__n_bins_z                        = n_bins_z
-        self.__n_peaks                         = n_peaks
-        self.__fft_n_pts                       = fft_n_pts
-        self.__analyze_geometry                = analyze_geometry
-        self.__analyze_displacements           = analyze_displacements
-        self.__random_seed                     = random_seed
-        self.__additional_parameters           = kwargs
+        self.__listener                          = listener
+        self.__beam                              = beam
+        self.__original_beam                     = beam.duplicate()
+        self.__optical_element                   = optical_element
+        self.__original_optical_element          = optical_element.duplicate()
+        self.__diffraction_plane                 = diffraction_plane
+        self.__propagation_type                  = propagation_type
+        self.__n_bins_x                          = n_bins_x
+        self.__n_bins_z                          = n_bins_z
+        self.__n_peaks                           = n_peaks
+        self.__fft_n_pts                         = fft_n_pts
+        self.__analyze_geometry                  = analyze_geometry
+        self.__treat_displacement_as_phase_shift = treat_displacement_as_phase_shift
+        self.__random_seed                       = random_seed
+        self.__additional_parameters             = kwargs
 
     @property
     def listener(self) -> HybridListener: return self.__listener
@@ -298,7 +299,7 @@ class HybridInputParameters():
     @property
     def analyze_geometry(self) -> bool: return self.__analyze_geometry
     @property
-    def analyze_displacements(self) -> bool: return self.__analyze_displacements
+    def treat_displacement_as_phase_shift(self) -> bool: return self.__treat_displacement_as_phase_shift
     @property
     def random_seed(self) -> int: return self.__random_seed
 
@@ -1493,11 +1494,12 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
                                          geometry_analysis : HybridGeometryAnalysis) -> Tuple[Union[ScaledArray, None], float, float]:
         sagittal_phase_shift, scale_factor = super(AbstractMirrorOrGratingSizeHybridScreen, self)._initialize_sagittal_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
 
-        has_roll_displacement, rotation_angle = self._has_roll_displacement(input_parameters, calculation_parameters)
-        if has_roll_displacement:
-            sag_min, sag_max, _, _ = self._get_optical_element_spatial_limits(input_parameters, calculation_parameters)
-            sagittal_phase_shift = ScaledArray.initialize_from_range(numpy.zeros(3), sag_min, sag_max)
-            sagittal_phase_shift.set_values(sagittal_phase_shift.get_values() + sagittal_phase_shift.get_abscissas()*numpy.sin(rotation_angle))
+        if input_parameters.treat_displacement_as_phase_shift:
+            has_roll_displacement, rotation_angle = self._has_roll_displacement(input_parameters, calculation_parameters)
+            if has_roll_displacement:
+                sag_min, sag_max, _, _ = self._get_optical_element_spatial_limits(input_parameters, calculation_parameters)
+                sagittal_phase_shift = ScaledArray.initialize_from_range(numpy.zeros(3), sag_min, sag_max)
+                sagittal_phase_shift.set_values(sagittal_phase_shift.get_values() + sagittal_phase_shift.get_abscissas()*numpy.sin(rotation_angle))
 
         return sagittal_phase_shift, scale_factor
 
@@ -1507,29 +1509,31 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
                                            geometry_analysis : HybridGeometryAnalysis) -> Tuple[Union[ScaledArray, None], float]:
         tangential_phase_shift, scale_factor = super(AbstractMirrorOrGratingSizeHybridScreen, self)._initialize_tangential_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
 
-        has_pitch_displacement, rotation_angle = self._has_pitch_displacement(input_parameters, calculation_parameters)
+        if input_parameters.treat_displacement_as_phase_shift:
+            has_pitch_displacement, rotation_angle = self._has_pitch_displacement(input_parameters, calculation_parameters)
 
-        if has_pitch_displacement:
-            _, _, tan_min, tan_max = self._get_optical_element_spatial_limits(input_parameters, calculation_parameters)
+            if has_pitch_displacement:
+                _, _, tan_min, tan_max = self._get_optical_element_spatial_limits(input_parameters, calculation_parameters)
 
-            tangential_phase_shift = ScaledArray.initialize_from_range(numpy.zeros(3), tan_min, tan_max)
-            tangential_phase_shift.set_values(tangential_phase_shift.get_values() + tangential_phase_shift.get_abscissas() * numpy.sin(-rotation_angle))
+                tangential_phase_shift = ScaledArray.initialize_from_range(numpy.zeros(3), tan_min, tan_max)
+                tangential_phase_shift.set_values(tangential_phase_shift.get_values() + tangential_phase_shift.get_abscissas() * numpy.sin(-rotation_angle))
 
         return tangential_phase_shift, scale_factor
 
     def _initialize_2D_phase_shift(self, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters, geometry_analysis : HybridGeometryAnalysis) -> Union[ScaledMatrix, None]:
         phase_shift = super(AbstractMirrorOrGratingSizeHybridScreen, self)._initialize_2D_phase_shift(input_parameters, calculation_parameters, geometry_analysis)
 
-        has_pitch_displacement, rotation_angle = self._has_pitch_displacement(input_parameters, calculation_parameters)
+        if input_parameters.treat_displacement_as_phase_shift:
+            has_pitch_displacement, rotation_angle = self._has_pitch_displacement(input_parameters, calculation_parameters)
 
-        if has_pitch_displacement:
-            sag_min, sag_max, tan_min, tan_max = self._get_optical_element_spatial_limits(input_parameters, calculation_parameters)
-            phase_shift = ScaledMatrix.initialize_from_range(numpy.zeros((3, 3)),
-                                                             sag_min, sag_max,
-                                                             tan_min, tan_max)
+            if has_pitch_displacement:
+                sag_min, sag_max, tan_min, tan_max = self._get_optical_element_spatial_limits(input_parameters, calculation_parameters)
+                phase_shift = ScaledMatrix.initialize_from_range(numpy.zeros((3, 3)),
+                                                                 sag_min, sag_max,
+                                                                 tan_min, tan_max)
 
-            for x_index in range(phase_shift.size_x()):
-                phase_shift.z_values[x_index, :] += phase_shift.get_y_values()*numpy.sin(numpy.radians(-rotation_angle))
+                for x_index in range(phase_shift.size_x()):
+                    phase_shift.z_values[x_index, :] += phase_shift.get_y_values()*numpy.sin(numpy.radians(-rotation_angle))
 
         return phase_shift
 
@@ -1603,22 +1607,20 @@ class AbstractMirrorOrGratingSizeHybridScreen(AbstractHybridScreen):
         return self.__adjust_tangential_image_size(image_size, focallength_nf, input_parameters, calculation_parameters)
 
     def __adjust_sagittal_image_size(self, image_size: float, focallength: float, input_parameters: HybridInputParameters, calculation_parameters : AbstractHybridScreen.CalculationParameters) -> float:
-        has_roll_displacement, rotation_angle = self._has_roll_displacement(input_parameters, calculation_parameters)
-
-        if has_roll_displacement:
-            _, sagittal_offset = self._has_sagittal_offset(input_parameters, calculation_parameters)
-
-            image_size = max(image_size, 8 * (focallength * numpy.tan(numpy.radians(numpy.abs(rotation_angle))) + numpy.abs(sagittal_offset)))
+        if input_parameters.treat_displacement_as_phase_shift:
+            has_roll_displacement, rotation_angle = self._has_roll_displacement(input_parameters, calculation_parameters)
+            if has_roll_displacement:
+                _, sagittal_offset = self._has_sagittal_offset(input_parameters, calculation_parameters)
+                image_size = max(image_size, 8 * (focallength * numpy.tan(numpy.radians(numpy.abs(rotation_angle))) + numpy.abs(sagittal_offset)))
         
         return image_size
 
     def __adjust_tangential_image_size(self, image_size: float, focallength: float, input_parameters: HybridInputParameters, calculation_parameters: AbstractHybridScreen.CalculationParameters) -> float:
-        has_pitch_displacement, rotation_angle = self._has_pitch_displacement(input_parameters, calculation_parameters)
-
-        if has_pitch_displacement:
-            _, normal_offset = self._has_normal_offset(input_parameters, calculation_parameters)
-
-            image_size = max(image_size, 8 * (focallength * numpy.tan(numpy.radians(numpy.abs(rotation_angle))) + numpy.abs(normal_offset)))
+        if input_parameters.treat_displacement_as_phase_shift:
+            has_pitch_displacement, rotation_angle = self._has_pitch_displacement(input_parameters, calculation_parameters)
+            if has_pitch_displacement:
+                _, normal_offset = self._has_normal_offset(input_parameters, calculation_parameters)
+                image_size = max(image_size, 8 * (focallength * numpy.tan(numpy.radians(numpy.abs(rotation_angle))) + numpy.abs(normal_offset)))
 
         return image_size
 
@@ -1689,9 +1691,9 @@ class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSi
 
         sagittal_phase_shift = calculation_parameters.get("sagittal_error_profile_projection")
 
-        has_roll_displacement, rotation_angle = self._has_roll_displacement(input_parameters, calculation_parameters)
-        if has_roll_displacement:
-            sagittal_phase_shift.set_values(sagittal_phase_shift.get_values() + sagittal_phase_shift.get_abscissas() * numpy.sin(rotation_angle))
+        if input_parameters.treat_displacement_as_phase_shift:
+            has_roll_displacement, rotation_angle = self._has_roll_displacement(input_parameters, calculation_parameters)
+            if has_roll_displacement: sagittal_phase_shift.set_values(sagittal_phase_shift.get_values() + sagittal_phase_shift.get_abscissas() * numpy.sin(rotation_angle))
 
         rms_slope = AbstractHybridScreen._get_rms_slope_error_from_height(sagittal_phase_shift)
 
@@ -1717,9 +1719,9 @@ class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSi
 
         tangential_phase_shift = calculation_parameters.get("tangential_error_profile_projection")
 
-        has_pitch_displacement, rotation_angle = self._has_pitch_displacement(input_parameters, calculation_parameters)
-        if has_pitch_displacement:
-            tangential_phase_shift.set_values(tangential_phase_shift.get_values() + tangential_phase_shift.get_abscissas() * numpy.sin(-rotation_angle))
+        if input_parameters.treat_displacement_as_phase_shift:
+            has_pitch_displacement, rotation_angle = self._has_pitch_displacement(input_parameters, calculation_parameters)
+            if has_pitch_displacement: tangential_phase_shift.set_values(tangential_phase_shift.get_values() + tangential_phase_shift.get_abscissas() * numpy.sin(-rotation_angle))
 
         rms_slope = AbstractHybridScreen._get_rms_slope_error_from_height(tangential_phase_shift)
 
@@ -1741,9 +1743,9 @@ class _AbstractMirrorOrGratingSizeAndErrorHybridScreen(AbstractMirrorOrGratingSi
 
         phase_shift = calculation_parameters.get("error_profile")
 
-        has_pitch_displacement, rotation_angle = self._has_pitch_displacement(input_parameters, calculation_parameters)
-        if has_pitch_displacement:
-            phase_shift.set_values(phase_shift.get_values() + phase_shift.get_abscissas() * numpy.sin(-rotation_angle))
+        if input_parameters.treat_displacement_as_phase_shift:
+            has_pitch_displacement, rotation_angle = self._has_pitch_displacement(input_parameters, calculation_parameters)
+            if has_pitch_displacement: phase_shift.set_values(phase_shift.get_values() + phase_shift.get_abscissas() * numpy.sin(-rotation_angle))
 
         rms_slope = AbstractHybridScreen._get_rms_slope_error_from_height(ScaledArray(np_array=phase_shift.z_values[int(phase_shift.size_x()/2), :],
                                                                                       scale=phase_shift.get_y_values()))
@@ -1975,43 +1977,84 @@ class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
 
         kb_mirror_1            = input_parameters.optical_element.wrapped_optical_element[0].duplicate()
         kb_mirror_1_input_beam = input_parameters.beam.wrapped_beam[0]
-        kb_mirror_2            = input_parameters.optical_element.wrapped_optical_element[1]
-        kb_mirror_2_input_beam = input_parameters.beam.wrapped_beam[1]
 
-        self._modify_image_plane_distance_on_kb_1(kb_mirror_1, kb_mirror_2)
+        if input_parameters.treat_displacement_as_phase_shift:
+            kb_mirror_2 = input_parameters.optical_element.wrapped_optical_element[1]
+            kb_mirror_2_input_beam = input_parameters.beam.wrapped_beam[1]
 
-        input_parameters_1 = HybridInputParameters(listener=input_parameters.listener,
-                                                   beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_1_input_beam),
-                                                   optical_element=self._get_hybrid_oe_instance(input_parameters, kb_mirror_1),
-                                                   diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
-                                                   propagation_type=input_parameters.propagation_type,
-                                                   n_bins_x=input_parameters.n_bins_x,
-                                                   n_bins_z=input_parameters.n_bins_z,
-                                                   n_peaks=input_parameters.n_peaks,
-                                                   fft_n_pts=input_parameters.fft_n_pts,
-                                                   analyze_geometry=input_parameters.analyze_geometry,
-                                                   analyze_displacements=input_parameters.analyze_displacements,
-                                                   random_seed=input_parameters.random_seed,  # TODO: add field
-                                                   **input_parameters.additional_parameters)
+            self._modify_image_plane_distance_on_kb_1(kb_mirror_1, kb_mirror_2)
 
-        input_parameters_2 = HybridInputParameters(listener=input_parameters.listener,
-                                                   beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_2_input_beam),
-                                                   optical_element=self._get_hybrid_oe_instance(input_parameters, kb_mirror_2),
-                                                   diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
-                                                   propagation_type=input_parameters.propagation_type,
-                                                   n_bins_x=input_parameters.n_bins_x,
-                                                   n_bins_z=input_parameters.n_bins_z,
-                                                   n_peaks=input_parameters.n_peaks,
-                                                   fft_n_pts=input_parameters.fft_n_pts,
-                                                   analyze_geometry=input_parameters.analyze_geometry,
-                                                   analyze_displacements=input_parameters.analyze_displacements,
-                                                   random_seed=input_parameters.random_seed,  # TODO: add field
-                                                   **input_parameters.additional_parameters)
+            input_parameters_1 = HybridInputParameters(listener=input_parameters.listener,
+                                                       beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_1_input_beam),
+                                                       optical_element=self._get_hybrid_oe_instance(input_parameters, kb_mirror_1),
+                                                       diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
+                                                       propagation_type=input_parameters.propagation_type,
+                                                       n_bins_x=input_parameters.n_bins_x,
+                                                       n_bins_z=input_parameters.n_bins_z,
+                                                       n_peaks=input_parameters.n_peaks,
+                                                       fft_n_pts=input_parameters.fft_n_pts,
+                                                       analyze_geometry=input_parameters.analyze_geometry,
+                                                       analyze_displacements=True,
+                                                       random_seed=input_parameters.random_seed,
+                                                       **input_parameters.additional_parameters)
 
-        kb_mirror_1_result = kb_mirror_1_hybrid_screen.run_hybrid_method(input_parameters_1)
-        kb_mirror_2_result = kb_mirror_2_hybrid_screen.run_hybrid_method(input_parameters_2)
+            input_parameters_2 = HybridInputParameters(listener=input_parameters.listener,
+                                                       beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_2_input_beam),
+                                                       optical_element=self._get_hybrid_oe_instance(input_parameters, kb_mirror_2),
+                                                       diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
+                                                       propagation_type=input_parameters.propagation_type,
+                                                       n_bins_x=input_parameters.n_bins_x,
+                                                       n_bins_z=input_parameters.n_bins_z,
+                                                       n_peaks=input_parameters.n_peaks,
+                                                       fft_n_pts=input_parameters.fft_n_pts,
+                                                       analyze_geometry=input_parameters.analyze_geometry,
+                                                       analyze_displacements=True,
+                                                       random_seed=input_parameters.random_seed,
+                                                       **input_parameters.additional_parameters)
 
-        return self._merge_results(kb_mirror_1_result, kb_mirror_2_result)
+            kb_mirror_1_result = kb_mirror_1_hybrid_screen.run_hybrid_method(input_parameters_1)
+            kb_mirror_2_result = kb_mirror_2_hybrid_screen.run_hybrid_method(input_parameters_2)
+        else:
+            input_parameters_1 = HybridInputParameters(listener=input_parameters.listener,
+                                                       beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_1_input_beam),
+                                                       optical_element=self._get_hybrid_oe_instance(input_parameters, kb_mirror_1),
+                                                       diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
+                                                       propagation_type=HybridPropagationType.FAR_FIELD, # the only possible propagation mode: beam must be raytraced
+                                                       n_bins_x=input_parameters.n_bins_x,
+                                                       n_bins_z=input_parameters.n_bins_z,
+                                                       n_peaks=input_parameters.n_peaks,
+                                                       fft_n_pts=input_parameters.fft_n_pts,
+                                                       analyze_geometry=input_parameters.analyze_geometry,
+                                                       treat_displacement_as_phase_shift=False,
+                                                       random_seed=input_parameters.random_seed,
+                                                       **input_parameters.additional_parameters)
+
+            kb_mirror_1_result: HybridCalculationResult = kb_mirror_1_hybrid_screen.run_hybrid_method(input_parameters_1)
+            if input_parameters.propagation_type in [HybridPropagationType.BOTH, HybridPropagationType.NEAR_FIELD]:
+                kb_mirror_1_result.position_tangential = ScaledArray.initialize_from_range(np.zeros(kb_mirror_1_result.divergence_tangential.size()), -1, 1)
+
+            kb_mirror_2            = input_parameters.optical_element.wrapped_optical_element[1]
+            kb_mirror_2_input_beam = self._get_kb_mirror_2_input_beam(kb_mirror_2, kb_mirror_1_result.far_field_beam)
+
+            input_parameters_2 = HybridInputParameters(listener=input_parameters.listener,
+                                                       beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_2_input_beam),
+                                                       optical_element=self._get_hybrid_oe_instance(input_parameters, kb_mirror_2),
+                                                       diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
+                                                       propagation_type=input_parameters.propagation_type,
+                                                       n_bins_x=input_parameters.n_bins_x,
+                                                       n_bins_z=input_parameters.n_bins_z,
+                                                       n_peaks=input_parameters.n_peaks,
+                                                       fft_n_pts=input_parameters.fft_n_pts,
+                                                       analyze_geometry=input_parameters.analyze_geometry,
+                                                       treat_displacement_as_phase_shift=False,
+                                                       random_seed=input_parameters.random_seed,
+                                                       **input_parameters.additional_parameters)
+
+            kb_mirror_2_result = kb_mirror_2_hybrid_screen.run_hybrid_method(input_parameters_2)
+
+        return self._merge_results(kb_mirror_1_result=kb_mirror_1_result,
+                                   kb_mirror_2_result=kb_mirror_2_result,
+                                   treat_displacement_as_phase_shift=input_parameters.treat_displacement_as_phase_shift)
 
     def _get_hybrid_beam_instance(self, input_parameters: HybridInputParameters, kb_mirror_input_beam):
         return input_parameters.beam.__class__(beam=kb_mirror_input_beam)
@@ -2019,25 +2062,37 @@ class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
     def _get_hybrid_oe_instance(self, input_parameters: HybridInputParameters, kb_mirror):
         return input_parameters.optical_element.__class__(optical_element=kb_mirror, name=None)
 
-    def _merge_results(self, kb_mirror_1_result: HybridCalculationResult, kb_mirror_2_result: HybridCalculationResult):
+    def _merge_results(self, kb_mirror_1_result: HybridCalculationResult, kb_mirror_2_result: HybridCalculationResult, treat_displacement_as_phase_shift: bool):
         geometry_analysis = HybridGeometryAnalysis()
         if kb_mirror_1_result.geometry_analysis.has_result(HybridGeometryAnalysis.BEAM_NOT_CUT_TANGENTIALLY):
             geometry_analysis.add_analysis_result(HybridGeometryAnalysis.BEAM_NOT_CUT_SAGITTALLY)
         if kb_mirror_2_result.geometry_analysis.has_result(HybridGeometryAnalysis.BEAM_NOT_CUT_TANGENTIALLY):
             geometry_analysis.add_analysis_result(HybridGeometryAnalysis.BEAM_NOT_CUT_TANGENTIALLY)
 
-        return HybridCalculationResult(far_field_beam=self._merge_beams(kb_mirror_1_result.far_field_beam, kb_mirror_2_result.far_field_beam),
-                                       near_field_beam=self._merge_beams(kb_mirror_1_result.near_field_beam, kb_mirror_2_result.near_field_beam),
-                                       divergence_sagittal=kb_mirror_1_result.divergence_tangential,
-                                       divergence_tangential=kb_mirror_2_result.divergence_tangential,
-                                       position_sagittal=kb_mirror_1_result.position_tangential,
-                                       position_tangential=kb_mirror_2_result.position_tangential,
-                                       geometry_analysis=geometry_analysis)
+        if treat_displacement_as_phase_shift:
+            return HybridCalculationResult(far_field_beam=self._merge_beams(kb_mirror_1_result.far_field_beam, kb_mirror_2_result.far_field_beam),
+                                           near_field_beam=self._merge_beams(kb_mirror_1_result.near_field_beam, kb_mirror_2_result.near_field_beam),
+                                           divergence_sagittal=kb_mirror_1_result.divergence_tangential,
+                                           divergence_tangential=kb_mirror_2_result.divergence_tangential,
+                                           position_sagittal=kb_mirror_1_result.position_tangential,
+                                           position_tangential=kb_mirror_2_result.position_tangential,
+                                           geometry_analysis=geometry_analysis)
+        else:
+            return HybridCalculationResult(far_field_beam=kb_mirror_2_result.far_field_beam,
+                                           near_field_beam=kb_mirror_2_result.near_field_beam,
+                                           divergence_sagittal=kb_mirror_1_result.divergence_tangential,
+                                           divergence_tangential=kb_mirror_2_result.divergence_tangential,
+                                           position_sagittal=kb_mirror_1_result.position_tangential,
+                                           position_tangential=kb_mirror_2_result.position_tangential,
+                                           geometry_analysis=geometry_analysis)
 
     @abstractmethod
     def _modify_image_plane_distance_on_kb_1(self, kb_mirror_1: BeamlineElement, kb_mirror_2: BeamlineElement): raise NotImplementedError
     @abstractmethod
     def _merge_beams(self, beam_1: HybridBeamWrapper, beam_2: HybridBeamWrapper): raise NotImplementedError
+    @abstractmethod
+    def _get_kb_mirror_2_input_beam(self, kb_mirror_2: BeamlineElement, beam_1: HybridBeamWrapper): raise NotImplementedError
+
 
 
 class AbstractKBMirrorSizeAndErrorHybridScreen(AbstractKBMirrorSizeHybridScreen):
