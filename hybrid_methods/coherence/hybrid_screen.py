@@ -1975,17 +1975,17 @@ class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
         kb_mirror_1_hybrid_screen = HybridScreenManager.Instance().create_hybrid_screen_manager(self._implementation, self._get_internal_calculation_type())
         kb_mirror_2_hybrid_screen = HybridScreenManager.Instance().create_hybrid_screen_manager(self._implementation, self._get_internal_calculation_type())
 
-        kb_mirror_1            = input_parameters.optical_element.wrapped_optical_element[0].duplicate()
-        kb_mirror_1_input_beam = input_parameters.beam.wrapped_beam[0]
+        kb_mirror_1      = input_parameters.optical_element.wrapped_optical_element[0].duplicate()
+        kb_mirror_1_beam = input_parameters.beam.wrapped_beam[0]
+        kb_mirror_2      = input_parameters.optical_element.wrapped_optical_element[1].duplicate()
 
         if input_parameters.treat_displacement_as_phase_shift:
-            kb_mirror_2 = input_parameters.optical_element.wrapped_optical_element[1]
-            kb_mirror_2_input_beam = input_parameters.beam.wrapped_beam[1]
+            kb_mirror_2_beam = input_parameters.beam.wrapped_beam[1]
 
             self._modify_image_plane_distance_on_kb_1(kb_mirror_1, kb_mirror_2)
 
             input_parameters_1 = HybridInputParameters(listener=input_parameters.listener,
-                                                       beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_1_input_beam),
+                                                       beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_1_beam),
                                                        optical_element=self._get_hybrid_oe_instance(input_parameters, kb_mirror_1),
                                                        diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
                                                        propagation_type=input_parameters.propagation_type,
@@ -1999,7 +1999,7 @@ class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
                                                        **input_parameters.additional_parameters)
 
             input_parameters_2 = HybridInputParameters(listener=input_parameters.listener,
-                                                       beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_2_input_beam),
+                                                       beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_2_beam),
                                                        optical_element=self._get_hybrid_oe_instance(input_parameters, kb_mirror_2),
                                                        diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
                                                        propagation_type=input_parameters.propagation_type,
@@ -2016,7 +2016,7 @@ class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
             kb_mirror_2_result = kb_mirror_2_hybrid_screen.run_hybrid_method(input_parameters_2)
         else:
             input_parameters_1 = HybridInputParameters(listener=input_parameters.listener,
-                                                       beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_1_input_beam),
+                                                       beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_1_beam),
                                                        optical_element=self._get_hybrid_oe_instance(input_parameters, kb_mirror_1),
                                                        diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
                                                        propagation_type=HybridPropagationType.FAR_FIELD, # the only possible propagation mode: beam must be raytraced
@@ -2033,11 +2033,10 @@ class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
             if input_parameters.propagation_type in [HybridPropagationType.BOTH, HybridPropagationType.NEAR_FIELD]:
                 kb_mirror_1_result.position_tangential = ScaledArray.initialize_from_range(np.zeros(kb_mirror_1_result.divergence_tangential.size()), -1, 1)
 
-            kb_mirror_2            = input_parameters.optical_element.wrapped_optical_element[1]
-            kb_mirror_2_input_beam = self._get_kb_mirror_2_input_beam(kb_mirror_2, kb_mirror_1_result.far_field_beam)
+            kb_mirror_2_beam = self._get_kb_mirror_2_beam(kb_mirror_2, kb_mirror_1_result.far_field_beam)
 
             input_parameters_2 = HybridInputParameters(listener=input_parameters.listener,
-                                                       beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_2_input_beam),
+                                                       beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_2_beam),
                                                        optical_element=self._get_hybrid_oe_instance(input_parameters, kb_mirror_2),
                                                        diffraction_plane=HybridDiffractionPlane.TANGENTIAL,
                                                        propagation_type=input_parameters.propagation_type,
@@ -2089,10 +2088,9 @@ class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
     @abstractmethod
     def _modify_image_plane_distance_on_kb_1(self, kb_mirror_1: BeamlineElement, kb_mirror_2: BeamlineElement): raise NotImplementedError
     @abstractmethod
-    def _merge_beams(self, beam_1: HybridBeamWrapper, beam_2: HybridBeamWrapper): raise NotImplementedError
+    def _get_kb_mirror_2_beam(self, kb_mirror_2: BeamlineElement, beam_1: HybridBeamWrapper): raise NotImplementedError
     @abstractmethod
-    def _get_kb_mirror_2_input_beam(self, kb_mirror_2: BeamlineElement, beam_1: HybridBeamWrapper): raise NotImplementedError
-
+    def _merge_beams(self, beam_1: HybridBeamWrapper, beam_2: HybridBeamWrapper): raise NotImplementedError
 
 
 class AbstractKBMirrorSizeAndErrorHybridScreen(AbstractKBMirrorSizeHybridScreen):

@@ -9,7 +9,7 @@ except AttributeError:
 
 NAME = 'shadow-hybrid-methods'
 
-VERSION = '1.0.25'
+VERSION = '1.0.26'
 ISRELEASED = True
 
 DESCRIPTION = 'Hybrid Methods, combining raytracing with wave optics'
