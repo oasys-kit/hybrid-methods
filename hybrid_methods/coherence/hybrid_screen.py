@@ -2029,11 +2029,8 @@ class AbstractKBMirrorSizeHybridScreen(AbstractHybridScreen):
                                                        random_seed=input_parameters.random_seed,
                                                        **input_parameters.additional_parameters)
 
-            kb_mirror_1_result: HybridCalculationResult = kb_mirror_1_hybrid_screen.run_hybrid_method(input_parameters_1)
-            if input_parameters.propagation_type in [HybridPropagationType.BOTH, HybridPropagationType.NEAR_FIELD]:
-                kb_mirror_1_result.position_tangential = ScaledArray.initialize_from_range(np.zeros(kb_mirror_1_result.divergence_tangential.size()), -1, 1)
-
-            kb_mirror_2_beam = self._get_kb_mirror_2_beam(kb_mirror_2, kb_mirror_1_result.far_field_beam)
+            kb_mirror_1_result = kb_mirror_1_hybrid_screen.run_hybrid_method(input_parameters_1)
+            kb_mirror_2_beam   = self._get_kb_mirror_2_beam(kb_mirror_2, kb_mirror_1_result.far_field_beam)
 
             input_parameters_2 = HybridInputParameters(listener=input_parameters.listener,
                                                        beam=self._get_hybrid_beam_instance(input_parameters, kb_mirror_2_beam),
